@@ -1,0 +1,576 @@
+/* Pokemon TCG Log Replay App - Styles */
+
+/* Design System */
+:root {
+    --color-primary: #4A90E2;
+    --color-surface: #FFFFFF;
+    --color-background: #F5F5F5;
+    --color-border: #DDDDDD;
+    --color-text: #333333;
+    --color-error: #F44336;
+
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+
+    /* Reduced card sizes to fit on one screen */
+    --card-width-small: 80px;
+    --card-height-small: 112px;
+    --card-width-large: 120px;
+    --card-height-large: 168px;
+
+    --font-size-sm: 12px;
+    --font-size-md: 14px;
+    --font-size-lg: 18px;
+}
+
+/* Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, sans-serif;
+    color: var(--color-text);
+    background-color: var(--color-background);
+}
+
+/* Screens */
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* ===== LOAD SCREEN ===== */
+#load-screen {
+    justify-content: center;
+    align-items: center;
+}
+
+.load-container {
+    background: var(--color-surface);
+    padding: 32px;
+    border-radius: 12px;
+    max-width: 600px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.load-container h1 {
+    text-align: center;
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-lg);
+    font-size: 28px;
+}
+
+.file-selection-area {
+    text-align: center;
+    padding: var(--spacing-lg);
+    border: 2px dashed var(--color-border);
+    border-radius: 8px;
+    margin: var(--spacing-lg) 0;
+}
+
+.file-icon {
+    font-size: 64px;
+    margin-bottom: var(--spacing-md);
+}
+
+.file-selection-area p {
+    margin: var(--spacing-md) 0;
+    color: var(--color-text);
+}
+
+.file-info {
+    font-size: var(--font-size-sm);
+    color: #999;
+}
+
+.primary-button {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 6px;
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.primary-button:hover {
+    background: #357ABD;
+}
+
+.secondary-button {
+    background: white;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.secondary-button:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.instructions {
+    margin-top: var(--spacing-lg);
+    text-align: left;
+}
+
+.instructions h3 {
+    margin-bottom: var(--spacing-md);
+    color: var(--color-text);
+}
+
+.instructions ol {
+    margin-left: var(--spacing-lg);
+    line-height: 1.8;
+}
+
+/* ===== PLAY SCREEN ===== */
+.play-header {
+    background: var(--color-surface);
+    padding: var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.playback-controls {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.control-btn {
+    padding: 8px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.control-btn:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 16px;
+}
+
+/* Game Area */
+.game-area {
+    flex: 1;
+    padding: var(--spacing-md);
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.opponent-area,
+.player-area {
+    margin: var(--spacing-sm) 0;
+}
+
+.player-top-row,
+.player-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: var(--spacing-sm) 0;
+}
+
+/* Prize Cards */
+.prize-cards {
+    text-align: center;
+}
+
+.prize-count {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--color-primary);
+    background: var(--color-surface);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    border: 2px solid var(--color-border);
+}
+
+/* Deck Area */
+.deck-area {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.deck-pile,
+.discard-pile {
+    position: relative;
+    text-align: center;
+}
+
+.card-back,
+.card-placeholder {
+    width: var(--card-width-small);
+    height: var(--card-height-small);
+    background: #4A90E2;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.card-count {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: var(--font-size-sm);
+}
+
+/* Battle & Bench */
+.battle-area,
+.bench-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-height: 150px;
+    padding: var(--spacing-md);
+}
+
+.bench-area {
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+/* Hand */
+.hand-area {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+/* Stadium */
+.stadium-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 150px;
+    padding: var(--spacing-md);
+}
+
+/* Pokemon Cards */
+.pokemon-card {
+    position: relative;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.pokemon-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.pokemon-card.large {
+    width: var(--card-width-large);
+    height: var(--card-height-large);
+}
+
+.pokemon-card.small {
+    width: var(--card-width-small);
+    height: var(--card-height-small);
+}
+
+.card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    display: block;
+}
+
+/* Card Overlays */
+.damage-counter {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--color-error);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+.special-conditions {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    display: flex;
+    gap: 2px;
+    font-size: 16px;
+}
+
+.energy-display {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.tool-display {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+}
+
+/* Stadium Card */
+.stadium-card {
+    width: var(--card-width-large);
+    height: var(--card-height-large);
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.stadium-card-slot {
+    min-width: var(--card-width-large);
+    min-height: var(--card-height-large);
+}
+
+/* Log Footer */
+.log-footer {
+    background: var(--color-surface);
+    border-top: 2px solid var(--color-border);
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.log-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.log-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.log-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-sm);
+}
+
+.log-message {
+    margin: 4px 0;
+}
+
+.log-message.attack {
+    color: #2196F3;
+    font-weight: bold;
+}
+
+.log-message.knockout {
+    color: #F44336;
+    font-weight: bold;
+}
+
+/* ===== POPUP ===== */
+.popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.popup-overlay.active {
+    display: flex;
+}
+
+.popup-content {
+    background: white;
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.popup-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 32px;
+    cursor: pointer;
+    color: var(--color-text);
+}
+
+.popup-close:hover {
+    color: var(--color-error);
+}
+
+.card-detail {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
+.card-image-large {
+    width: 300px;
+    height: 420px;
+    object-fit: contain;
+}
+
+.card-info {
+    flex: 1;
+}
+
+.card-info h2 {
+    margin-bottom: var(--spacing-md);
+    color: var(--color-primary);
+}
+
+.card-info p {
+    margin: var(--spacing-sm) 0;
+}
+
+/* ===== LOADING ===== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.loading-overlay.hidden {
+    display: none;
+}
+
+.loading-content {
+    background: white;
+    padding: 32px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.spinner {
+    font-size: 48px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===== ERROR SCREEN ===== */
+.error-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: var(--spacing-lg);
+    text-align: center;
+}
+
+.error-icon {
+    font-size: 64px;
+    margin-bottom: var(--spacing-md);
+}
+
+.error-container h2 {
+    color: var(--color-error);
+    margin-bottom: var(--spacing-md);
+}
+
+.error-message {
+    background: #FFF3F3;
+    padding: var(--spacing-md);
+    border-radius: 8px;
+    margin: var(--spacing-md) 0;
+    color: var(--color-text);
+}
+
+.error-suggestions {
+    text-align: left;
+    margin: var(--spacing-md) 0;
+}
+
+.error-suggestions ul {
+    margin-left: var(--spacing-lg);
+    line-height: 1.8;
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}

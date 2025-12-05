@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTCGL ログリプレイアプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- S-001: ログ読込画面 -->
+    <div id="load-screen" class="screen active">
+        <div class="load-container">
+            <h1>PTCGL ログリプレイアプリ</h1>
+            <div class="file-selection-area">
+                <div class="file-icon">📁</div>
+                <p>PTCGLログファイルを選択してください</p>
+                <button id="file-select-btn" class="primary-button">ファイルを選択</button>
+                <input type="file" id="file-input" accept=".txt" style="display: none;">
+                <p class="file-info">対応形式: .txt</p>
+            </div>
+            <div class="instructions">
+                <h3>使い方:</h3>
+                <ol>
+                    <li>ログファイル(.txt)を選択</li>
+                    <li>自動で解析が始まります</li>
+                    <li>プレイ画面で対戦を再生できます</li>
+                </ol>
+            </div>
+        </div>
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="spinner">⌛</div>
+                <p>解析中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- S-002: プレイ画面 -->
+    <div id="play-screen" class="screen">
+        <!-- ヘッダー: ターン表示とコントロール -->
+        <header class="play-header">
+            <div class="turn-display">
+                <span id="turn-info">Turn # 1 - Player1's Turn</span>
+            </div>
+            <div class="playback-controls">
+                <button id="btn-first" class="control-btn" title="最初へ">⏮</button>
+                <button id="btn-prev" class="control-btn" title="前へ">⏪</button>
+                <button id="btn-pause" class="control-btn" title="一時停止">⏸</button>
+                <button id="btn-play" class="control-btn" title="再生">▶</button>
+                <button id="btn-next" class="control-btn" title="次へ">⏩</button>
+                <button id="btn-last" class="control-btn" title="最後へ">⏭</button>
+                <div class="speed-control">
+                    <label for="speed-slider">速度:</label>
+                    <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.5" value="1.0">
+                    <span id="speed-display">1.0x</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- メインゲームエリア -->
+        <main class="game-area">
+            <!-- 相手側エリア -->
+            <div class="opponent-area player-area">
+                <div class="player-top-row">
+                    <!-- サイドカード（相手） -->
+                    <div class="prize-cards">
+                        <div class="prize-count" id="opponent-prize-count">6</div>
+                    </div>
+
+                    <!-- トラッシュと山札（相手） -->
+                    <div class="deck-area">
+                        <div class="discard-pile" id="opponent-discard">
+                            <div class="card-placeholder">トラッシュ</div>
+                            <div class="card-count" id="opponent-discard-count">(0)</div>
+                        </div>
+                        <div class="deck-pile" id="opponent-deck">
+                            <div class="card-back">山札</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ベンチ（相手） -->
+                <div class="bench-area" id="opponent-bench">
+                    <!-- ベンチポケモンが動的に追加される -->
+                </div>
+
+                <!-- バトル場（相手） -->
+                <div class="battle-area">
+                    <div class="battle-pokemon" id="opponent-active">
+                        <!-- アクティブポケモンが動的に追加される -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- スタジアムカード -->
+            <div class="stadium-area">
+                <div id="stadium-card" class="stadium-card-slot">
+                    <!-- スタジアムカードが動的に追加される -->
+                </div>
+            </div>
+
+            <!-- 自分側エリア -->
+            <div class="player-area">
+                <!-- バトル場（自分） -->
+                <div class="battle-area">
+                    <div class="battle-pokemon" id="player-active">
+                        <!-- アクティブポケモンが動的に追加される -->
+                    </div>
+                </div>
+
+                <!-- ベンチ（自分） -->
+                <div class="bench-area" id="player-bench">
+                    <!-- ベンチポケモンが動的に追加される -->
+                </div>
+
+                <div class="player-bottom-row">
+                    <!-- トラッシュと山札（自分） -->
+                    <div class="deck-area">
+                        <div class="discard-pile" id="player-discard">
+                            <div class="card-placeholder">トラッシュ</div>
+                            <div class="card-count" id="player-discard-count">(0)</div>
+                        </div>
+                        <div class="deck-pile" id="player-deck">
+                            <div class="card-back">山札</div>
+                        </div>
+                    </div>
+
+                    <!-- サイドカード（自分） -->
+                    <div class="prize-cards">
+                        <div class="prize-count" id="player-prize-count">6</div>
+                    </div>
+                </div>
+
+                <!-- 手札エリア -->
+                <div class="hand-area" id="player-hand">
+                    <!-- 手札カードが動的に追加される -->
+                </div>
+            </div>
+        </main>
+
+        <!-- ログエリア -->
+        <footer class="log-footer">
+            <div class="log-header">
+                <h3>ログ</h3>
+                <button id="btn-new-log" class="secondary-button">新しいログを読込</button>
+            </div>
+            <div class="log-content" id="log-content">
+                <!-- ログメッセージが動的に追加される -->
+            </div>
+        </footer>
+    </div>
+
+    <!-- S-003: カード詳細ポップアップ -->
+    <div id="card-detail-popup" class="popup-overlay">
+        <div class="popup-content">
+            <button class="popup-close" id="popup-close">×</button>
+            <div class="card-detail">
+                <img id="card-detail-image" src="" alt="Card Image" class="card-image-large">
+                <div class="card-info">
+                    <h2 id="card-detail-name">Card Name</h2>
+                    <p id="card-detail-hp">HP: 0</p>
+                    <div id="card-detail-attacks"></div>
+                    <div id="card-detail-other"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- S-004: エラー画面 -->
+    <div id="error-screen" class="screen">
+        <div class="error-container">
+            <div class="error-icon">❌</div>
+            <h2>エラーが発生しました</h2>
+            <div class="error-message" id="error-message">
+                <p>ログファイルの形式が不正です。</p>
+            </div>
+            <div class="error-suggestions">
+                <p>以下を確認してください:</p>
+                <ul>
+                    <li>ファイルが.txt形式か</li>
+                    <li>PTCGLのログファイルか</li>
+                    <li>ファイルが壊れていないか</li>
+                </ul>
+            </div>
+            <button id="btn-back-to-load" class="primary-button">戻る</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
