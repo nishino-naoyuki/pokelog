@@ -4,7 +4,8 @@
 :root {
     --color-primary: #4A90E2;
     --color-surface: #FFFFFF;
-    --color-background: #F5F5F5;
+    --color-background: #1a1a2e;
+    /* Fallback */
     --color-border: #DDDDDD;
     --color-text: #333333;
     --color-error: #F44336;
@@ -34,7 +35,11 @@
 body {
     font-family: system-ui, sans-serif;
     color: var(--color-text);
-    background-color: var(--color-background);
+    /* PTCGL-like dark futuristic background */
+    background: radial-gradient(circle at center, #2C3E50 0%, #000000 100%);
+    background-attachment: fixed;
+    /* Ensures background stays when scrolling */
+    min-height: 100vh;
 }
 
 /* Screens */
@@ -172,40 +177,6 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: 16px;
-}
-
-/* Game Area */
-.game-area {
-    flex: 1;
-    padding: var(--spacing-md);
-    max-width: 1400px;
-    margin: 0 auto;
-    width: 100%;
-    overflow-y: auto;
-}
-
-.opponent-area,
-.player-area {
-    margin: var(--spacing-sm) 0;
-}
-
-.player-top-row,
-.player-bottom-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: var(--spacing-sm) 0;
-}
-
-/* Prize Cards */
-.prize-cards {
-    text-align: center;
-}
-
-.prize-count {
-    font-size: 24px;
-    font-weight: bold;
     color: var(--color-primary);
     background: var(--color-surface);
     border-radius: 50%;
@@ -218,10 +189,156 @@ body {
     border: 2px solid var(--color-border);
 }
 
+/* Game Area - Grid Layout */
+.game-area {
+    flex: 1;
+    padding: 0 var(--spacing-md);
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    overflow-y: auto;
+
+    display: grid;
+    grid-template-columns: 100px 1fr 120px;
+    /* Left(Prize) Center(Board) Right(Deck) */
+    grid-template-areas:
+        "opp-prize  opp-bench   opp-deck"
+        "stadium    opp-active  opp-deck"
+        "stadium    player-active player-deck"
+        "player-prize player-bench player-deck"
+        "player-hand  player-hand   player-hand";
+    gap: var(--spacing-sm) var(--spacing-md);
+    align-items: center;
+    justify-items: center;
+}
+
+.opponent-area,
+.player-area,
+.player-top-row,
+.player-bottom-row {
+    display: contents;
+    /* Flatten structure for grid */
+}
+
+/* Battle Active State Indicator */
+.turn-active .pokemon-card.large {
+    box-shadow: 0 0 15px 5px rgba(255, 255, 100, 0.7);
+    transform: scale(1.05);
+    transition: all 0.3s ease;
+    border: 2px solid #FFD700;
+}
+
+/* Grid Area Assignments */
+.stadium-area {
+    grid-area: stadium;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Opponent Items */
+.opponent-area .prize-cards {
+    grid-area: opp-prize;
+    align-self: flex-start;
+}
+
+#opponent-bench {
+    grid-area: opp-bench;
+}
+
+.opponent-area .deck-area {
+    grid-area: opp-deck;
+    flex-direction: column;
+    /* Stack Deck and Trash */
+}
+
+#opponent-battle-area {
+    grid-area: opp-active;
+    align-self: flex-end;
+    /* Push to bottom of cell (closer to center) */
+    padding-bottom: var(--spacing-md);
+}
+
+/* Player Items */
+.self-area .prize-cards {
+    grid-area: player-prize;
+    align-self: flex-end;
+}
+
+#player-bench {
+    grid-area: player-bench;
+}
+
+.self-area .deck-area {
+    grid-area: player-deck;
+    flex-direction: column-reverse;
+    /* Stack Deck (bottom) and Trash (top) */
+}
+
+#player-battle-area {
+    grid-area: player-active;
+    align-self: flex-start;
+    /* Push to top of cell (closer to center) */
+    padding-top: var(--spacing-md);
+}
+
+#player-hand {
+    grid-area: player-hand;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Prize Cards */
+.prize-cards {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.prize-count {
+    font-weight: bold;
+    font-size: var(--font-size-lg);
+    background: var(--color-surface);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    z-index: 2;
+    /* Keep count on top */
+}
+
+.prize-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: -10px;
+    /* Overlap with count slightly? Or just stick below */
+}
+
+.prize-card-icon {
+    width: 40px;
+    height: 56px;
+    background: #4A90E2;
+    /* Card Back Blue */
+    border: 2px solid #FFF;
+    border-radius: 4px;
+    margin-top: -40px;
+    /* Heavy overlap to create stack effect */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.prize-card-icon:first-child {
+    margin-top: 0;
+}
+
 /* Deck Area */
 .deck-area {
     display: flex;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    justify-content: center;
+    align-items: center;
 }
 
 .deck-pile,
@@ -261,7 +378,7 @@ body {
     align-items: center;
     gap: var(--spacing-sm);
     min-height: 150px;
-    padding: var(--spacing-md);
+    /* padding: var(--spacing-md); Removed padding to fit better in grid */
 }
 
 .bench-area {
@@ -281,14 +398,7 @@ body {
     overflow-x: auto;
 }
 
-/* Stadium */
-.stadium-area {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 150px;
-    padding: var(--spacing-md);
-}
+/* Stadium - Moved to grid area assignments */
 
 /* Pokemon Cards */
 .pokemon-card {
@@ -325,25 +435,65 @@ body {
 }
 
 /* Card Overlays */
-.damage-counter {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: var(--color-error);
+/* Energy Icons */
+.energy-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 10px;
     color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
     font-weight: bold;
-    font-size: 11px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.special-conditions {
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    display: flex;
-    gap: 2px;
-    font-size: 16px;
+.type-fire {
+    background: #E74C3C;
+}
+
+.type-water {
+    background: #3498DB;
+}
+
+.type-grass {
+    background: #2ECC71;
+}
+
+.type-lightning {
+    background: #F1C40F;
+    color: #333;
+}
+
+.type-psychic {
+    background: #9B59B6;
+}
+
+.type-fighting {
+    background: #E67E22;
+}
+
+.type-darkness {
+    background: #34495E;
+}
+
+.type-metal {
+    background: #95A5A6;
+}
+
+.type-fairy {
+    background: #FFB7B2;
+}
+
+.type-dragon {
+    background: #C49F30;
+}
+
+.type-colorless {
+    background: #ECF0F1;
+    color: #333;
 }
 
 .energy-display {
@@ -354,28 +504,159 @@ body {
     display: flex;
     justify-content: center;
     gap: 2px;
-    font-size: 14px;
-    background: rgba(0, 0, 0, 0.6);
     padding: 2px;
-    border-radius: 4px;
+    background: transparent;
+    /* Clean look */
+    pointer-events: none;
 }
 
+/* Tool Display */
 .tool-display {
     position: absolute;
     left: 4px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 20px;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 }
 
-/* Stadium Card */
-.stadium-card {
+/* Damage Counter (Dice Style) */
+.damage-counter {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 32px;
+    height: 32px;
+    background-color: #D32F2F;
+    /* Red dice color */
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 14px;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+
+/* Played Card Effect Overlay */
+.played-card-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3000;
+    text-align: center;
+    animation: popInFadeOut 2.5s ease-in-out forwards;
+}
+
+.played-card-image {
+    width: 240px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+    border: 4px solid #FFF;
+}
+
+.played-card-label {
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+@keyframes popInFadeOut {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+
+    15% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+
+    25% {
+        transform: translate(-50%, -50%) scale(1.0);
+    }
+
+    75% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+}
+
+/* Animations */
+@keyframes flyToTrash {
+    0% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 1;
+    }
+
+    20% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(var(--tx), var(--ty)) scale(0.2);
+        opacity: 0;
+    }
+}
+
+.animate-fly-trash {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 4000;
     width: var(--card-width-large);
     height: var(--card-height-large);
-    border: 2px solid var(--color-border);
     border-radius: 8px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+    /* transition handled by JS or keyframes? Keyframes better for complex multipart */
+    animation: flyToTrash 1.0s ease-in-out forwards;
+}
+
+@keyframes flyDraw {
+    0% {
+        transform: translate(0, 0) scale(0.2);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: translate(var(--mid-x), var(--mid-y)) scale(1.2);
+        opacity: 1;
+        z-index: 5000;
+    }
+
+    100% {
+        transform: translate(var(--end-x), var(--end-y)) scale(1.0);
+        opacity: 1;
+    }
+}
+
+.animate-fly-draw {
+    position: fixed;
+    z-index: 4000;
+    width: var(--card-width-small);
+    height: var(--card-height-small);
+    border-radius: 8px;
+    background: #4A90E2;
+    /* Card back */
+    border: 2px solid white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    animation: flyDraw 0.8s ease-out forwards;
 }
 
 .stadium-card-slot {

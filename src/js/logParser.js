@@ -142,9 +142,13 @@ class LogParser {
             }
 
             // Parse action
-            const action = this.parseAction(line, playerName, actions.length);
-            if (action) {
-                actions.push(action);
+            const actionOrActions = this.parseAction(line, playerName, actions.length);
+            if (actionOrActions) {
+                if (Array.isArray(actionOrActions)) {
+                    actions.push(...actionOrActions);
+                } else {
+                    actions.push(actionOrActions);
+                }
             }
 
             this.currentLine++;
@@ -165,7 +169,7 @@ class LogParser {
         // Play Pokemon to Active Spot
         if (cleanLine.includes('played') && cleanLine.includes('to the Active Spot')) {
             const match = cleanLine.match(/^(.+?) played (.+?) to the Active Spot/);
-            if (match) {
+            if (match && match[2].toLowerCase() !== 'them' && match[2].toLowerCase() !== 'thme' && match[2].toLowerCase() !== 'it') {
                 return new Action('play_pokemon_active', this.getPlayerKey(match[1]), {
                     pokemonName: match[2]
                 }, timestamp);
@@ -173,19 +177,77 @@ class LogParser {
         }
 
         // Play Pokemon to Bench
+        // Handle "played [Name] to the Bench" AND "played them/it to the Bench" followed by bullets
         if (cleanLine.includes('played') && cleanLine.includes('to the Bench')) {
             const match = cleanLine.match(/^(.+?) played (.+?) to the Bench/);
             if (match) {
-                return new Action('play_pokemon_bench', this.getPlayerKey(match[1]), {
-                    pokemonName: match[2]
-                }, timestamp);
+                const playerName = match[1];
+                const cardName = match[2];
+
+                // Case 1: "played them/it to the Bench" (Look ahead for bullets)
+                if (cardName.toLowerCase() === 'them' || cardName.toLowerCase() === 'it') {
+                    // We need to look ahead for bullet points
+                    // This is tricky because parseAction usually handles one line.
+                    // We might need to return a special flag or handle this in the main loop.
+                    // BUT, to keep it simple within the current architecture:
+                    // We can peek at 'this.lines' using 'this.currentLine'.
+                    // However, parseAction doesn't have access to 'this'.
+                    // Wait, parseAction IS a method of LogParser, it has access to 'this' via binding or instance?
+                    // Yes, it is called as this.parseAction. So 'this' should be available.
+
+                    // Let's assume we can access this.lines and this.currentLine.
+                    // Oh wait, parseAction is called inside parseTurn, and currentLine is incremented there.
+                    // We shouldn't modify currentLine globally here if we can avoid it, OR we carefully consume it.
+
+                    // It's safer to rely on the caller to pass checking context, but 'this' is available.
+                    // Let's try to find bullet points in subsequent lines.
+
+                    const newActions = [];
+                    // Peek ahead
+                    let tempLineIdx = this.currentLine + 1;
+                    while (tempLineIdx < this.lines.length) {
+                        const nextLine = this.lines[tempLineIdx].trim();
+                        // Bullet point format: "• CardName" or "• CardName, CardName"
+                        // Or just indented text? Log sample shows: "   • Dreepy, Dreepy"
+                        if (nextLine.includes('•') || nextLine.startsWith('•')) {
+                            const content = nextLine.replace(/^[•\s]+/, '').trim();
+                            const cards = content.split(',').map(c => c.trim());
+                            cards.forEach(c => {
+                                newActions.push(new Action('play_pokemon_bench', this.getPlayerKey(playerName), {
+                                    pokemonName: c
+                                }, timestamp));
+                            });
+                            // Advance the global line counter so parseTurn doesn't re-read these
+                            this.currentLine++;
+                            tempLineIdx++;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (newActions.length > 0) {
+                        // We need to return multiple actions. 
+                        // But parseAction expects single return.
+                        // We can modify 'parseTurn' to handle array return, or return the first one and queue others?
+                        // Hack: Return a "CompositeAction" or assume caller handles array?
+                        // Let's modify 'parseTurn' to handle array return first.
+                        return newActions;
+                    }
+                } else {
+                    // Case 2: Explicit Name "played Ralts to the Bench"
+                    return new Action('play_pokemon_bench', this.getPlayerKey(playerName), {
+                        pokemonName: cardName
+                    }, timestamp);
+                }
             }
         }
 
         // Pokemon is now in Active Spot (switch)
         if (cleanLine.includes('is now in the Active Spot')) {
             const match = cleanLine.match(/^(.+?)'s (.+?) is now in the Active Spot/);
-            if (match) {
+            // "them" is often used in logs like "switched them to the Active Spot" but here it's "is now in..."
+            // If match[2] is 'them', it's likely an error or placeholder in some logs. 
+            if (match && match[2].toLowerCase() !== 'them') {
                 return new Action('switch_active', this.getPlayerKey(match[1]), {
                     pokemonName: match[2]
                 }, timestamp);
@@ -265,10 +327,19 @@ class LogParser {
 
         // Take prize
         if (cleanLine.includes('took') && cleanLine.includes('Prize')) {
-            const match = cleanLine.match(/^(.+?) took (\d+) Prize card/);
-            if (match) {
-                return new Action('take_prize', this.getPlayerKey(match[1]), {
-                    count: parseInt(match[2])
+            // "took 1 Prize card" or "took 2 Prize cards"
+            const numericMatch = cleanLine.match(/^(.+?) took (\d+) Prize card/);
+            if (numericMatch) {
+                return new Action('take_prize', this.getPlayerKey(numericMatch[1]), {
+                    count: parseInt(numericMatch[2])
+                }, timestamp);
+            }
+
+            // "took a Prize card"
+            const singleMatch = cleanLine.match(/^(.+?) took a Prize card/);
+            if (singleMatch) {
+                return new Action('take_prize', this.getPlayerKey(singleMatch[1]), {
+                    count: 1
                 }, timestamp);
             }
         }
@@ -290,6 +361,59 @@ class LogParser {
             if (match) {
                 return new Action('retreat', this.getPlayerKey(match[1]), {
                     pokemon: match[2]
+                }, timestamp);
+            }
+        }
+
+        // Put damage counters (Effect)
+        if (cleanLine.includes('put') && cleanLine.includes('damage counter')) {
+            const match = cleanLine.match(/^(.+?) put (\d+|a) damage counter(?:s)? on (.+?)\.?$/);
+            if (match) {
+                const count = match[2] === 'a' ? 1 : parseInt(match[2]);
+                return new Action('put_damage_counter', this.getPlayerKey(match[1]), {
+                    target: match[3],
+                    count: count
+                }, timestamp);
+            }
+        }
+
+        // Move damage counters
+        if (cleanLine.includes('moved') && cleanLine.includes('damage counter')) {
+            const match = cleanLine.match(/^(.+?) moved (\d+|a) damage counter(?:s)? from (.+?) to (.+?)\.?$/);
+            if (match) {
+                const count = match[2] === 'a' ? 1 : parseInt(match[2]);
+                return new Action('move_damage_counter', this.getPlayerKey(match[1]), {
+                    from: match[3],
+                    to: match[4],
+                    count: count
+                }, timestamp);
+            }
+        }
+
+        // Special Condition Damage (Burned/Poisoned checkup)
+        if (cleanLine.includes('damage counter') && cleanLine.includes('was placed on') || cleanLine.includes('were placed on')) {
+            const match = cleanLine.match(/^(\d+|a) damage counter(?:s)? (?:was|were) placed on (.+?) for the Special Condition/);
+            if (match) {
+                const count = match[1] === 'a' ? 1 : parseInt(match[1]);
+                // "Player's Pokemon" -> extract player
+                const playerMatch = match[2].match(/^(.+?)'s (.+)/);
+                if (playerMatch) {
+                    return new Action('special_condition_damage', this.getPlayerKey(playerMatch[1]), {
+                        pokemonName: playerMatch[2],
+                        count: count
+                    }, timestamp);
+                }
+            }
+        }
+
+        // Special Condition - Burned/Poisoned status
+        if (cleanLine.includes('is now Burned') || cleanLine.includes('is now Poisoned')) {
+            const type = cleanLine.includes('Burned') ? 'Burned' : 'Poisoned';
+            const match = cleanLine.match(/^(.+?)'s (.+?) is now/);
+            if (match) {
+                return new Action('special_condition', this.getPlayerKey(match[1]), {
+                    pokemonName: match[2],
+                    condition: type
                 }, timestamp);
             }
         }

@@ -18,6 +18,7 @@ class GameState {
 
         // Initialize from setup data if available
         if (parseData.setup) {
+            this.initialSetup = parseData.setup;
             this.initializeFromSetup(parseData.setup);
         }
     }
@@ -99,6 +100,21 @@ class GameState {
             case 'take_prize':
                 this.handleTakePrize(player, action.data);
                 break;
+            case 'put_damage_counter':
+                this.handlePutDamageCounter(player, action.data);
+                break;
+            case 'move_damage_counter':
+                this.handleMoveDamageCounter(player, action.data);
+                break;
+            case 'special_condition_damage':
+                this.handleSpecialConditionDamage(player, action.data);
+                break;
+            case 'special_condition':
+                this.handleSpecialCondition(player, action.data);
+                break;
+            case 'evolve':
+                this.handleEvolve(player, action.data);
+                break;
             case 'turn_end':
                 this.handleTurnEnd();
                 break;
@@ -163,7 +179,15 @@ class GameState {
         // Remove from hand and apply card effect
         const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
         if (cardIndex >= 0) {
-            player.hand.splice(cardIndex, 1);
+            const playedCard = player.hand.splice(cardIndex, 1)[0];
+            // Add to discard pile
+            player.discardPile.push(playedCard);
+            console.log(`${player.name} played ${playedCard.name} (moved to discard)`);
+        } else {
+            // If card not found in hand (e.g. log discrepancy), still create and discard it for visual consistency
+            const placeholderCard = new Card(data.cardName, 'trainer'); // Most played cards are trainers
+            player.discardPile.push(placeholderCard);
+            console.log(`${player.name} played ${data.cardName} (created and moved to discard)`);
         }
     }
 
@@ -261,14 +285,147 @@ class GameState {
             this.turnNumber++;
         }
     }
+
+    // Helper to find pokemon by name/target string
+    findPokemon(player, targetStr) {
+        if (!targetStr) return null;
+        const lower = targetStr.toLowerCase();
+
+        // Check active
+        if (player.activePokemon && (lower.includes('active') || player.activePokemon.card.name === targetStr)) {
+            return player.activePokemon;
+        }
+
+        // Check bench
+        return player.bench.find(p => p.card.name === targetStr) || null;
+    }
+
+    handlePutDamageCounter(player, data) {
+        // Target format: "Player's Pokemon" or just "Pokemon"
+        let targetOwner = player;
+        let pokemonName = data.target;
+
+        if (data.target.includes("'s ")) {
+            const parts = data.target.split("'s ");
+            const ownerName = parts[0];
+            pokemonName = parts[1];
+
+            if (ownerName === this.players.player1.name) targetOwner = this.players.player1;
+            else if (ownerName === this.players.player2.name) targetOwner = this.players.player2;
+        }
+
+        let pokemon = this.findPokemon(targetOwner, pokemonName);
+
+        // Fallback: If not found on inferred owner, check the other player
+        if (!pokemon) {
+            const otherPlayer = targetOwner === this.players.player1 ? this.players.player2 : this.players.player1;
+            const otherPokemon = this.findPokemon(otherPlayer, pokemonName);
+            if (otherPokemon) {
+                targetOwner = otherPlayer;
+                pokemon = otherPokemon;
+                console.log(`Pokemon ${pokemonName} found on opponent's (${otherPlayer.name}) bench/active`);
+            }
+        }
+
+        if (pokemon) {
+            pokemon.damage += (data.count * 10);
+            console.log(`Put ${data.count} counters on ${targetOwner.name}'s ${pokemon.card.name} (Total: ${pokemon.damage})`);
+        } else {
+            console.warn(`Could not find pokemon for put_damage_counter: ${data.target}`);
+        }
+    }
+
+    handleMoveDamageCounter(player, data) {
+        const resolveTarget = (targetStr) => {
+            let owner = player;
+            if (targetStr.includes("'s ")) {
+                const parts = targetStr.split("'s ");
+                const ownerName = parts[0];
+                const pName = parts[1];
+                if (ownerName === this.players.player1.name) owner = this.players.player1;
+                else if (ownerName === this.players.player2.name) owner = this.players.player2;
+                return { owner, name: pName };
+            }
+            return { owner, name: targetStr };
+        };
+
+        const from = resolveTarget(data.from);
+        const to = resolveTarget(data.to);
+
+        const fromPokemon = this.findPokemon(from.owner, from.name);
+        const toPokemon = this.findPokemon(to.owner, to.name);
+
+        const amount = data.count * 10;
+
+        if (fromPokemon) fromPokemon.damage = Math.max(0, fromPokemon.damage - amount);
+        if (toPokemon) toPokemon.damage += amount;
+
+        console.log(`Moved ${data.count} counters from ${from.name} to ${to.name}`);
+    }
+
+    handleSpecialConditionDamage(player, data) {
+        const pokemon = this.findPokemon(player, data.pokemonName);
+        if (pokemon) {
+            pokemon.damage += (data.count * 10);
+        }
+    }
+
+    handleSpecialCondition(player, data) {
+        const pokemon = this.findPokemon(player, data.pokemonName);
+        if (pokemon) {
+            if (!pokemon.specialConditions.includes(data.condition)) {
+                pokemon.specialConditions.push(data.condition);
+            }
+        }
+    }
+
+    handleEvolve(player, data) {
+        const pokemon = this.findPokemon(player, data.from);
+        if (pokemon) {
+            console.log(`Evolved ${player.name}'s ${data.from} to ${data.to}`);
+            pokemon.card.name = data.to;
+            pokemon.evolutionStage += 1;
+            pokemon.specialConditions = [];
+        } else {
+            console.warn(`Could not find pokemon to evolve: ${data.from} -> ${data.to}`);
+        }
+    }
+
+    reset() {
+        this.players.player1.reset();
+        this.players.player2.reset();
+        this.activePlayer = 'player1';
+        this.turnNumber = 1;
+        this.stadium = null;
+        this.currentActionIndex = 0;
+        this.isGameOver = false;
+        this.winner = null;
+
+        if (this.initialSetup) {
+            this.initializeFromSetup(this.initialSetup);
+        }
+    }
 }
 
 class PlayerState {
     constructor(name) {
         this.name = name;
-        this.deck = 60; // Starting deck size (estimate)
+        this.deck = 60;
         this.hand = [];
-        this.handCount = 0; // For opponent
+        this.handCount = 0;
+        this.prizeCount = 6;
+        this.prizeCards = [];
+        this.activePokemon = null;
+        this.bench = [];
+        this.discardPile = [];
+        this.lostZone = [];
+        this.vstarUsed = false;
+    }
+
+    reset() {
+        this.deck = 60;
+        this.hand = [];
+        this.handCount = 0;
         this.prizeCount = 6;
         this.prizeCards = [];
         this.activePokemon = null;
@@ -279,7 +436,6 @@ class PlayerState {
     }
 
     initializeFromSetup(setupData) {
-        // Initialize from setup data
         if (setupData.activePokemon) {
             this.activePokemon = new Pokemon(new Card(setupData.activePokemon, 'pokemon'));
         }

@@ -160,6 +160,7 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
     const app = new App();
     app.init();
+    window.app = app; // Expose for testing
 });
 
 export { App };

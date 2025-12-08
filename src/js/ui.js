@@ -36,6 +36,20 @@ class UI {
             const activeLabel = gameState.activePlayer === 'player1' ? 'プレイヤー1' : 'プレイヤー2';
             this.activePlayerEl.textContent = `${activeLabel}のターン`;
         }
+
+        // Visual Turn Indicator (Glow)
+        const p1Active = document.getElementById('player-active');
+        const p2Active = document.getElementById('opponent-active');
+
+        if (p1Active && p2Active) {
+            if (gameState.activePlayer === 'player1') {
+                p1Active.classList.add('turn-active');
+                p2Active.classList.remove('turn-active');
+            } else {
+                p1Active.classList.remove('turn-active');
+                p2Active.classList.add('turn-active');
+            }
+        }
     }
 
     updateTurnDisplay(gameState) {
@@ -165,7 +179,7 @@ class UI {
             energyDisplay.className = 'energy-display';
             pokemon.energies.forEach(energy => {
                 const icon = this.getEnergyIcon(energy.name);
-                energyDisplay.textContent += icon;
+                energyDisplay.innerHTML += icon;
             });
             card.appendChild(energyDisplay);
         }
@@ -233,6 +247,18 @@ class UI {
         if (el) {
             el.textContent = count;
         }
+
+        // Update stack visualization
+        const stackId = elementId.replace('count', 'stack');
+        const stackEl = document.getElementById(stackId);
+        if (stackEl) {
+            stackEl.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const cardIcon = document.createElement('div');
+                cardIcon.className = 'prize-card-icon';
+                stackEl.appendChild(cardIcon);
+            }
+        }
     }
 
     addLogMessage(message, type = 'normal') {
@@ -254,30 +280,268 @@ class UI {
         }
     }
 
-    getConditionIcon(condition) {
-        const icons = {
-            'poisoned': '☠️',
-            'burned': '🔥',
-            'asleep': '💤',
-            'paralyzed': '⚡',
-            'confused': '❓'
-        };
-        return icons[condition] || '?';
+    showPlayedCard(cardName, cardMapper) {
+        // This will be called by PlaybackController
+        // We can use EffectsRenderer for this, but since UI has access to cardMapper, maybe UI handles image fetching
+        // Let's assume UI delegates to a new method which creates the overlay
+        this.renderPlayedCardOverlay(cardName, cardMapper);
+    }
+
+    async renderPlayedCardOverlay(cardName, cardMapper) {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'played-card-overlay';
+
+        const img = document.createElement('img');
+        img.className = 'played-card-image';
+        img.src = await cardMapper.getCardImage(cardName);
+
+        const label = document.createElement('div');
+        label.className = 'played-card-label';
+        label.textContent = cardName;
+
+        overlay.appendChild(img);
+        overlay.appendChild(label);
+        document.body.appendChild(overlay);
+
+        // Remove after animation
+        setTimeout(() => {
+            overlay.remove();
+        }, 2500);
+    }
+
+    showAttackEffect(sourceEl, targetEl, type = 'normal') {
+        if (!targetEl) return;
+
+        // Simple flash and shake
+        targetEl.style.transition = 'filter 0.1s, transform 0.1s';
+        targetEl.style.filter = 'brightness(2) sepia(1) hue-rotate(-50deg) saturate(5)'; // Flash Red
+        targetEl.style.transform = 'translate(5px, 0)';
+
+        setTimeout(() => {
+            targetEl.style.transform = 'translate(-5px, 0)';
+        }, 50);
+
+        setTimeout(() => {
+            targetEl.style.transform = 'translate(5px, 0)';
+        }, 100);
+
+        setTimeout(() => {
+            targetEl.style.transform = 'translate(0, 0)';
+            targetEl.style.filter = 'none';
+        }, 150);
+
+        // Damage Number
+        const damageEl = document.createElement('div');
+        damageEl.className = 'damage-animation';
+        damageEl.textContent = type === 'strong' ? '!!!' : '!';
+        // Reuse damage counter style but larger
+        damageEl.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 64px;
+            font-weight: bold;
+            color: #FF0000;
+            text-shadow: 2px 2px 0 #FFF;
+            z-index: 100;
+            pointer-events: none;
+            animation: fadeUp 1s ease-out forwards;
+        `;
+
+        // Add keyframes if not exists
+        if (!document.getElementById('anim-style')) {
+            const style = document.createElement('style');
+            style.id = 'anim-style';
+            style.textContent = `
+                @keyframes fadeUp {
+                    0% { opacity: 1; transform: translate(-50%, -50%); }
+                    100% { opacity: 0; transform: translate(-50%, -150%); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        targetEl.appendChild(damageEl);
+
+        setTimeout(() => {
+            damageEl.remove();
+        }, 1000);
+    }
+
+    showTrashEffect(sourceEl, type = 'discard') {
+        if (!sourceEl) return;
+
+        const rect = sourceEl.getBoundingClientRect();
+        const clone = sourceEl.cloneNode(true);
+
+        // Style the clone for animation start
+        clone.style.cssText = `
+            position: fixed;
+            top: ${rect.top}px;
+            left: ${rect.left}px;
+            width: ${rect.width}px;
+            height: ${rect.height}px;
+            z-index: 4000;
+            pointer-events: none;
+            transition: none;
+        `;
+
+        // Get target (Discard Pile)
+        const isPlayer = sourceEl.closest('.player-area') || sourceEl.id.includes('player') || sourceEl.classList.contains('player-hand');
+        // If source is null or generic, try to determine from state or default to player?
+        // Actually logParser knows player.
+
+        // Find discard pile element
+        // We need to look for 'discard-pile' class inside 'player-area' or 'opponent-area'
+        const discardPile = isPlayer
+            ? document.querySelector('.self-area .discard-pile')
+            : document.querySelector('.opponent-area .discard-pile');
+
+        if (discardPile) {
+            const targetRect = discardPile.getBoundingClientRect();
+
+            // Calculate destination CSS variables for the keyframe animation
+            // The animation keyframe uses translate(var(--tx), var(--ty)) relative to initial position
+            // Initial: top/left are fixed.
+            // transform: translate(-50%, -50%) is used for centering.
+            // Wait, showPlayedCard centers it using fixed 50% 50%.
+
+            // If source was 'showPlayedCard' overlay, it's at fixed top:50%, left:50%
+            // and has translate(-50%, -50%).
+
+            // Let's assume this is called on the 'played-card-overlay' element?
+            // playbackController.js calls: this.ui.showTrashEffect(handEl, 'discard');
+            // Wait, it passes 'handEl' (the whole hand container?). That's wrong.
+            // It should pass the specific card, or we simulate from center.
+
+            // Refactored approach:
+            // 1. If we have a played card overlay, animate THAT to trash.
+            // 2. If generic discard, animate from source to trash.
+
+            const overlay = document.querySelector('.played-card-overlay');
+            const targetEl = overlay || clone;
+
+            if (overlay) {
+                // If there's an overlay, we animate IT to the trash
+                // Overlay is fixed 50% 50%.
+                const startX = window.innerWidth / 2;
+                const startY = window.innerHeight / 2;
+
+                const endX = targetRect.left + targetRect.width / 2;
+                const endY = targetRect.top + targetRect.height / 2;
+
+                const deltaX = endX - startX;
+                const deltaY = endY - startY;
+
+                targetEl.style.setProperty('--tx', `${deltaX}px`);
+                targetEl.style.setProperty('--ty', `${deltaY}px`);
+
+                targetEl.classList.remove('played-card-overlay'); // Remove old animation
+                void targetEl.offsetWidth; // Trigger reflow
+                targetEl.classList.add('animate-fly-trash');
+
+                // Cleanup after animation
+                setTimeout(() => {
+                    targetEl.remove();
+                }, 1000); // Match animation duration
+
+                return; // Done
+            }
+        }
+
+        // Fallback for non-overlay discard (e.g. from hand directly)
+        // Not implementing detailed hand-to-trash for now as user asked specifically for "Played Card -> Trash"
+        if (clone && sourceEl !== document.body) { // Check if valid element
+            document.body.appendChild(clone);
+            // Simple fade out fallback
+            clone.style.transition = 'all 0.5s';
+            clone.style.opacity = '0';
+            clone.style.transform = 'scale(0.5)';
+            setTimeout(() => clone.remove(), 500);
+        }
+    }
+
+    animateDraw(playerKey, count) {
+        const isPlayer = playerKey === 'player1'; // Assuming player1 is Self
+        const deckEl = isPlayer
+            ? document.querySelector('.self-area .deck-pile')
+            : document.querySelector('.opponent-area .deck-pile');
+
+        const handEl = isPlayer
+            ? document.getElementById('player-hand')
+            : document.querySelector('.opponent-area'); // Opponent hand is hidden/virtual usually? 
+
+        if (!deckEl || !handEl) return;
+
+        const deckRect = deckEl.getBoundingClientRect();
+        const handRect = handEl.getBoundingClientRect();
+
+        for (let i = 0; i < count; i++) {
+            const card = document.createElement('div');
+            card.className = 'animate-fly-draw';
+
+            // Start position (Deck)
+            card.style.top = `${deckRect.top}px`;
+            card.style.left = `${deckRect.left}px`;
+
+            // Calculate midpoint (arc effect) and endpoint
+            // Randomize slightly for multiple cards
+            const offset = (i - count / 2) * 20;
+            const endX = (handRect.left + handRect.width / 2 - deckRect.left) + offset;
+            const endY = (handRect.top + handRect.height / 2 - deckRect.top);
+
+            const midX = endX / 2;
+            const midY = endY - 100; // Arc up
+
+            card.style.setProperty('--mid-x', `${midX}px`);
+            card.style.setProperty('--mid-y', `${midY}px`);
+            card.style.setProperty('--end-x', `${endX}px`);
+            card.style.setProperty('--end-y', `${endY}px`);
+
+            // Stagger animations
+            card.style.animationDelay = `${i * 100}ms`;
+
+            document.body.appendChild(card);
+
+            setTimeout(() => {
+                card.remove();
+            }, 1000 + (i * 100));
+        }
     }
 
     getEnergyIcon(energyName) {
-        if (energyName.includes('Fire')) return '🔥';
-        if (energyName.includes('Water')) return '💧';
-        if (energyName.includes('Grass')) return '🌿';
-        if (energyName.includes('Electric') || energyName.includes('Lightning')) return '⚡';
-        if (energyName.includes('Psychic')) return '🔮';
-        if (energyName.includes('Fighting')) return '✊';
-        if (energyName.includes('Dark')) return '🌙';
-        if (energyName.includes('Metal')) return '⚙️';
-        if (energyName.includes('Fairy')) return '🧚';
-        if (energyName.includes('Dragon')) return '🐉';
-        if (energyName.includes('Colorless')) return '⚪';
-        return '⭐'; // Default for unknown or special energy
+        let type = 'colorless';
+        let symbol = 'C';
+        let icon = null;
+        const name = energyName.toLowerCase();
+
+        // Specific emojis/icons requested by user
+        if (name.includes('fire')) { type = 'fire'; symbol = '🔥'; }
+        else if (name.includes('water')) { type = 'water'; symbol = '💧'; }
+        else if (name.includes('grass')) { type = 'grass'; symbol = '🌿'; }
+        else if (name.includes('lightning') || name.includes('electric')) { type = 'lightning'; symbol = '⚡'; }
+        else if (name.includes('psychic')) { type = 'psychic'; symbol = '👁️'; } // Or purple ball
+        else if (name.includes('fighting')) { type = 'fighting'; symbol = '✊'; }
+        else if (name.includes('dark')) { type = 'darkness'; symbol = '👿'; }
+        else if (name.includes('metal')) { type = 'metal'; symbol = '⚙️'; }
+        else if (name.includes('fairy')) { type = 'fairy'; symbol = '✨'; }
+        else if (name.includes('dragon')) { type = 'dragon'; symbol = '🐲'; }
+        else {
+            // Special energy - use first letter
+            symbol = energyName[0].toUpperCase();
+        }
+
+        // Use symbol directly if no specific styled span needed, OR keep span for background color
+        // User asked for specific icons. Let's return the emoji inside the colored span for visibility?
+        // Or just the emoji? User said "Fire -> Fire (Red)". 
+        // If I use emoji, color is fixed. If I use span background, I can color it.
+        // "Fire Energy -> Fire (Red)" -> 🔥 is Red.
+        // "Water Energy -> Water Drop (Blue)" -> 💧 is Blue.
+        // "Psychic -> Purple Eye" -> 👁️ is ... eye colored. 
+        // Let's combine: Icon + Background Color class.
+        return `<span class="energy-icon type-${type}">${symbol}</span>`;
     }
 }
 

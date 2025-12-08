@@ -67,6 +67,15 @@
                     <!-- サイドカード（相手） -->
                     <div class="prize-cards">
                         <div class="prize-count" id="opponent-prize-count">6</div>
+                        <div class="prize-stack" id="opponent-prize-stack">
+                            <!-- Visual cards will be added by JS -->
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                        </div>
                     </div>
 
                     <!-- トラッシュと山札（相手） -->
@@ -87,7 +96,7 @@
                 </div>
 
                 <!-- バトル場（相手） -->
-                <div class="battle-area">
+                <div class="battle-area" id="opponent-battle-area">
                     <div class="battle-pokemon" id="opponent-active">
                         <!-- アクティブポケモンが動的に追加される -->
                     </div>
@@ -102,9 +111,9 @@
             </div>
 
             <!-- 自分側エリア -->
-            <div class="player-area">
+            <div class="player-area self-area">
                 <!-- バトル場（自分） -->
-                <div class="battle-area">
+                <div class="battle-area" id="player-battle-area">
                     <div class="battle-pokemon" id="player-active">
                         <!-- アクティブポケモンが動的に追加される -->
                     </div>
@@ -130,6 +139,15 @@
                     <!-- サイドカード（自分） -->
                     <div class="prize-cards">
                         <div class="prize-count" id="player-prize-count">6</div>
+                        <div class="prize-stack" id="player-prize-stack">
+                            <!-- Visual cards will be added by JS -->
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                            <div class="prize-card-icon"></div>
+                        </div>
                     </div>
                 </div>
 

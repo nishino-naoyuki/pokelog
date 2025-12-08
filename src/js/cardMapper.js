@@ -32,6 +32,11 @@ class CardMapper {
             return this.getPlaceholderImage();
         }
 
+        // Return card back for hidden cards
+        if (cardName === 'Unknown Card' || cardName === 'Prize Card' || cardName === '山札') {
+            return this.getCardBackImage();
+        }
+
         const card = this.cardDatabase.get(cardName.toLowerCase());
 
         if (card && card.imageUrl && !card.imageUrl.includes('undefined')) {

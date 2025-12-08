@@ -51,6 +51,60 @@ class PlaybackController {
         const action = this.gameState.executeNextAction();
         await this.renderCurrentState();
         this.addActionLog(action);
+
+        const isPlayer = action.player === 'player1';
+
+        if (action.type === 'draw') {
+            if (action.data.count) {
+                this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.count);
+            } else if (action.data.cards) {
+                this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.cards.length);
+            }
+        }
+
+        if (action.type === 'play_card') {
+            this.ui.showPlayedCard(action.data.cardName, this.cardMapper);
+
+            // Trash effect
+            // UI will find opacity layer and animate it
+            // Delay slightly to let the user see the card
+            setTimeout(() => {
+                this.ui.showTrashEffect(null, 'discard');
+            }, 1500); // Wait for popIn (15%) + hold (25%->75%) ~ 1.5s
+        }
+
+        if (action.type === 'knockout') {
+            // For knockout, the player field in action is the one who lost the pokemon
+            const isVictimPlayer1 = action.player === 'player1';
+            const victimId = isVictimPlayer1 ? 'player-active' : 'opponent-active';
+            // Logic to find exact pokemon element might be tricky if it's already removed from state?
+            // But valid DOM element might still exist if we haven't re-rendered? 
+            // We JUST called renderCurrentState(), so the pokemon is GONE from the DOM!
+            // We need to trigger effect BEFORE rendering state? Or handle it differently.
+            // If we render state, the victim is gone.
+
+            // Actually, for knockout, we should probably show effect BEFORE rendering the state update that removes it.
+            // But stepForward is standard: execute -> render.
+            // Maybe we can rely on ShowTrashEffect spawning a clone of the element?
+            // But the element is gone from DOM.
+            // We might need to capture the element before rendering.
+        }
+
+        // Show effect for attack
+        if (action.type === 'use_attack') {
+            const sourceId = isPlayer ? 'player-active' : 'opponent-active';
+            const targetId = isPlayer ? 'opponent-active' : 'player-active';
+
+            const sourceEl = document.getElementById(sourceId)?.querySelector('.pokemon-card');
+            const targetEl = document.getElementById(targetId)?.querySelector('.pokemon-card');
+
+            if (sourceEl && targetEl) {
+                const type = (action.data.damage || 0) >= 100 ? 'strong' : 'normal';
+                if (this.ui.showAttackEffect) {
+                    this.ui.showAttackEffect(sourceEl, targetEl, type);
+                }
+            }
+        }
     }
 
     async stepBackward() {
@@ -139,7 +193,7 @@ class PlaybackController {
         this.ui.clearLog();
 
         // Reset to beginning
-        this.gameState.currentActionIndex = 0;
+        this.gameState.reset();
 
         // Re-execute actions up to target
         for (let i = 0; i < targetIndex; i++) {
@@ -150,5 +204,4 @@ class PlaybackController {
         await this.renderCurrentState();
     }
 }
-
 export { PlaybackController };
