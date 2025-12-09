@@ -271,8 +271,18 @@ class LogParser {
             }
         }
 
+        // Play Stadium
+        if (cleanLine.includes('played') && cleanLine.includes('to the Stadium spot')) {
+            const match = cleanLine.match(/^(.+?) played (.+?) to the Stadium spot/);
+            if (match) {
+                return new Action('play_stadium', this.getPlayerKey(match[1]), {
+                    cardName: match[2]
+                }, timestamp);
+            }
+        }
+
         // Play card (Trainer/Item/Stadium) - exclude Pokemon plays which were handled above
-        if (cleanLine.includes('played') && !cleanLine.includes('to the Active Spot') && !cleanLine.includes('to the Bench')) {
+        if (cleanLine.includes('played') && !cleanLine.includes('to the Active Spot') && !cleanLine.includes('to the Bench') && !cleanLine.includes('to the Stadium spot')) {
             const match = cleanLine.match(/^(.+?) played (.+?)\.?$/);
             if (match) {
                 return new Action('play_card', this.getPlayerKey(match[1]), { cardName: match[2] }, timestamp);

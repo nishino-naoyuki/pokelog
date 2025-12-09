@@ -87,6 +87,9 @@ class GameState {
             case 'play_card':
                 this.handlePlayCard(player, action.data);
                 break;
+            case 'play_stadium':
+                this.handlePlayStadium(player, action.data);
+                break;
             case 'attach_energy':
                 this.handleAttachEnergy(player, action.data);
                 break;
@@ -191,6 +194,21 @@ class GameState {
             player.discardPile.push(placeholderCard);
             console.log(`${player.name} played ${data.cardName} (created and moved to discard)`);
         }
+    }
+
+    handlePlayStadium(player, data) {
+        // Remove from hand (do NOT discard immediately)
+        const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
+        if (cardIndex >= 0) {
+            player.hand.splice(cardIndex, 1);
+        }
+
+        // Check if there is an existing stadium to discard?
+        // In a full simulation, we should discard the old stadium to its owner's discard pile.
+        // But for this visualizer, simply updating the board variable is sufficient for the user request.
+
+        this.stadium = new Card(data.cardName, 'stadium');
+        console.log(`${player.name} played Stadium: ${data.cardName}`);
     }
 
     handleAttachEnergy(player, data) {

@@ -125,7 +125,7 @@ class UI {
     }
 
     async renderStadium(stadium, cardMapper) {
-        const container = document.getElementById('stadium');
+        const container = document.getElementById('stadium-card');
         if (!container) return;
 
         container.innerHTML = '';

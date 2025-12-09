@@ -4,10 +4,12 @@
 class CardMapper {
     constructor() {
         this.cardDatabase = new Map();
+        this.localCache = new Map();
     }
 
     async loadCardDatabase() {
         try {
+            // 1. Load from pokemon_cards.json
             const response = await fetch('../data/pokemon_cards.json');
             const data = await response.json();
 
@@ -19,8 +21,23 @@ class CardMapper {
                     }
                 });
             }
-
             console.log(`Loaded ${this.cardDatabase.size} cards from database`);
+
+            // 2. Load cached cards from localStorage
+            try {
+                const cachedCards = JSON.parse(localStorage.getItem('newCards') || '[]');
+                if (Array.isArray(cachedCards)) {
+                    cachedCards.forEach(card => {
+                        if (card.name && card.imageUrl) {
+                            this.localCache.set(card.name.toLowerCase(), card);
+                        }
+                    });
+                    console.log(`Loaded ${this.localCache.size} cached cards from localStorage`);
+                }
+            } catch (e) {
+                console.warn('Error loading cached cards:', e);
+            }
+
         } catch (error) {
             console.warn('Could not load card database, using placeholders:', error);
         }
@@ -37,23 +54,29 @@ class CardMapper {
             return this.getCardBackImage();
         }
 
-        const card = this.cardDatabase.get(cardName.toLowerCase());
+        const normalizedName = cardName.toLowerCase();
 
-        if (card && card.imageUrl && !card.imageUrl.includes('undefined')) {
-            return card.imageUrl;
+        // 1. Try to get from pokemon_cards.json (cardDatabase)
+        const dbCard = this.cardDatabase.get(normalizedName);
+        if (dbCard && dbCard.imageUrl && !dbCard.imageUrl.includes('undefined')) {
+            return dbCard.imageUrl;
         }
 
-        // Card not found or has invalid URL - fetch from API
-        console.log(`🔍 Card "${cardName}" not in database, fetching from TCGdex API...`);
+        // 2. Try to get from Cache (localCache)
+        const cachedCard = this.localCache.get(normalizedName);
+        if (cachedCard && cachedCard.imageUrl && !cachedCard.imageUrl.includes('undefined')) {
+            console.log(`Found "${cardName}" in cache`);
+            return cachedCard.imageUrl;
+        }
+
+        // 3. Not found in DB or Cache - Fetch from API
+        console.log(`🔍 Card "${cardName}" not in database/cache, fetching from TCGdex API...`);
 
         try {
             const fetchedCard = await this.fetchCardFromAPI(cardName);
             if (fetchedCard && fetchedCard.imageUrl) {
-                // Save to local database (in-memory)
-                this.cardDatabase.set(cardName.toLowerCase(), fetchedCard);
-
-                // Save to JSON file for persistence
-                await this.saveCardToDatabase(fetchedCard);
+                // 4. Save obtained value to Cache
+                this.saveToCache(fetchedCard);
 
                 console.log(`✅ Successfully fetched and saved "${cardName}"`);
                 return fetchedCard.imageUrl;
@@ -105,35 +128,31 @@ class CardMapper {
         return null;
     }
 
-    async saveCardToDatabase(card) {
+    saveToCache(card) {
         try {
-            // Read current database
-            const response = await fetch('../data/pokemon_cards.json');
-            const currentData = await response.json();
+            // Update memory cache
+            this.localCache.set(card.name.toLowerCase(), card);
 
-            // Check if card already exists
-            const exists = currentData.some(c => c.name.toLowerCase() === card.name.toLowerCase());
-            if (exists) {
-                console.log(`Card "${card.name}" already in database`);
-                return;
-            }
-
-            // Add new card and sort alphabetically
-            currentData.push(card);
-            currentData.sort((a, b) => a.name.localeCompare(b.name));
-
-            // Note: Cannot directly write to file from browser
-            // Instead, we'll use localStorage as a cache
+            // Update localStorage
             const newCards = JSON.parse(localStorage.getItem('newCards') || '[]');
-            if (!newCards.some(c => c.name === card.name)) {
+
+            // Check if already in cache
+            if (!newCards.some(c => c.name.toLowerCase() === card.name.toLowerCase())) {
                 newCards.push(card);
+                // Sort for tidiness
+                newCards.sort((a, b) => a.name.localeCompare(b.name));
+
                 localStorage.setItem('newCards', JSON.stringify(newCards));
-                console.log(`💾 Saved "${card.name}" to localStorage (${newCards.length} new cards total)`);
-                console.log('ℹ️ Run the export script to save to pokemon_cards.json');
+                console.log(`💾 Saved "${card.name}" to localStorage cache (${newCards.length} cards total)`);
             }
         } catch (error) {
-            console.warn('Could not save to database:', error.message);
+            console.warn('Could not save to localStorage:', error.message);
         }
+    }
+
+    // Kept for backward compatibility
+    async saveCardToDatabase(card) {
+        this.saveToCache(card);
     }
 
     getPlaceholderImage(cardName = '') {
