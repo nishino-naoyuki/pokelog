@@ -348,9 +348,14 @@ class LogParser {
         if (cleanLine.includes('evolved')) {
             const match = cleanLine.match(/^(.+?) evolved (.+?) to (.+)/);
             if (match) {
+                let toName = match[3];
+                // Clean up suffixes like "on the Bench", "in the Active Spot", or just "."
+                // PTCGL logs often append location info to the target pokemon name in evolve lines
+                toName = toName.replace(/ (?:on|in) the (?:Bench|Active Spot)\.?$/, '').replace(/\.$/, '');
+
                 return new Action('evolve', this.getPlayerKey(match[1]), {
                     from: match[2],
-                    to: match[3]
+                    to: toName
                 }, timestamp);
             }
         }

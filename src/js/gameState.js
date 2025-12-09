@@ -69,6 +69,8 @@ class GameState {
         const player = this.players[action.player];
         const opponent = this.players[action.player === 'player1' ? 'player2' : 'player1'];
 
+        console.log('Applying Action:', action.type, action.data);
+
         switch (action.type) {
             case 'draw':
                 this.handleDraw(player, action.data);
@@ -95,7 +97,7 @@ class GameState {
                 this.handleDamage(opponent, action.data);
                 break;
             case 'knockout':
-                this.handleKnockout(opponent, action.data);
+                this.handleKnockout(player, action.data);
                 break;
             case 'take_prize':
                 this.handleTakePrize(player, action.data);
@@ -220,15 +222,47 @@ class GameState {
     handleUseAttack(player, opponent, data) {
         // Apply damage from attack if damage is specified
         if (data.damage && data.damage > 0) {
-            // Parse target to find which pokemon to damage
-            const targetLower = (data.target || '').toLowerCase();
+            let targetPokemon = null;
+            const targetName = data.target;
 
-            if (targetLower.includes('active') || !data.target) {
+            // 1. Check if target is explicitly "Active Spot" or implicitly Active (no target)
+            if (!targetName || targetName.toLowerCase().includes('active')) {
                 // Damage to opponent's active pokemon
                 if (opponent.activePokemon) {
-                    opponent.activePokemon.damage += data.damage;
-                    console.log(`Applied ${data.damage} damage to ${opponent.name}'s ${opponent.activePokemon.card.name}`);
+                    targetPokemon = opponent.activePokemon;
                 }
+            } else {
+                // 2. Try to resolve by name
+                // The target string might be "Player's PokemonName" or just "PokemonName"
+
+                // Helper to search a player's field for a pokemon by name
+                const findPokemonOnField = (p, name) => {
+                    if (p.activePokemon && p.activePokemon.card.name === name) return p.activePokemon;
+                    return p.bench.find(b => b.card.name === name);
+                };
+
+                // Remove owner prefix if present (e.g. "Player2's " or "Player2’s ")
+                let cleanTargetName = targetName;
+                if (targetName.match(/['’]s /)) {
+                    const parts = targetName.split(/['’]s /);
+                    // parts[0] is owner name, parts[1] is pokemon name
+                    cleanTargetName = parts[1];
+                }
+
+                // First check opponent (most likely target of attack)
+                targetPokemon = findPokemonOnField(opponent, cleanTargetName);
+
+                // If not found, check self (self-damage attacks exist)
+                if (!targetPokemon) {
+                    targetPokemon = findPokemonOnField(player, cleanTargetName);
+                }
+            }
+
+            if (targetPokemon) {
+                targetPokemon.damage += data.damage;
+                console.log(`Applied ${data.damage} damage to ${targetPokemon.card.name} (Current Damage: ${targetPokemon.damage})`);
+            } else {
+                console.warn(`Could not find target for attack damage: ${targetName}`);
             }
         }
     }
@@ -243,11 +277,24 @@ class GameState {
     handleKnockout(player, data) {
         const pokemonName = data.pokemonName;
 
+        const processKnockout = (pokemon) => {
+            pokemon.knockout();
+            // Discard base card
+            player.discardPile.push(pokemon.card);
+            // Discard energies
+            if (pokemon.energies && pokemon.energies.length > 0) {
+                pokemon.energies.forEach(e => player.discardPile.push(e));
+            }
+            // Discard tools
+            if (pokemon.tools && pokemon.tools.length > 0) {
+                pokemon.tools.forEach(t => player.discardPile.push(t));
+            }
+        };
+
         // Check active pokemon
         if (player.activePokemon && player.activePokemon.card.name === pokemonName) {
             console.log(`Knocking out ${player.name}'s ${pokemonName} (active)`);
-            player.activePokemon.knockout();
-            player.discardPile.push(player.activePokemon.card);
+            processKnockout(player.activePokemon);
             player.activePokemon = null;
             return;
         }
@@ -257,8 +304,7 @@ class GameState {
         if (benchIndex >= 0) {
             console.log(`Knocking out ${player.name}'s ${pokemonName} (bench)`);
             const pokemon = player.bench[benchIndex];
-            pokemon.knockout();
-            player.discardPile.push(pokemon.card);
+            processKnockout(pokemon);
             player.bench.splice(benchIndex, 1);
         }
     }
