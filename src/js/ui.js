@@ -116,12 +116,17 @@ class UI {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        container.innerHTML = '';
+        // ① 先に「カードのDOM」を全部作る（この段階では container にまだ追加しない）
+        const cardPromises = hand.map(card => {
+            console.log('Rendering hand card:', card);
+            return this.createHandCard(card, cardMapper);
+        });
 
-        for (const card of hand) {
-            const cardEl = await this.createHandCard(card, cardMapper);
-            container.appendChild(cardEl);
-        }
+        const cardEls = await Promise.all(cardPromises);
+
+        // ② できあがったカードを「一気に置き換え」る
+        //    → 古い要素は全部消えて、新しい要素に差し替え（空の状態は画面に出ない）
+        container.replaceChildren(...cardEls);
     }
 
     async renderStadium(stadium, cardMapper) {

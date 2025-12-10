@@ -258,7 +258,10 @@ class LogParser {
         if (cleanLine.match(/drew (a card|[\w\s]+)\.?$/)) {
             const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
             if (match) {
-                const cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
+                let cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
+                if (cardName.endsWith('.')) {
+                    cardName = cardName.slice(0, -1);
+                }
                 return new Action('draw', this.getPlayerKey(match[1]), { cards: [cardName] }, timestamp);
             }
         }
