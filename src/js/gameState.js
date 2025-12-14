@@ -21,6 +21,7 @@ class GameState {
             this.initialSetup = parseData.setup;
             this.initializeFromSetup(parseData.setup);
         }
+        console.log("parseData.actions", parseData.actions);
     }
 
     initializeFromSetup(setup) {
@@ -123,7 +124,14 @@ class GameState {
             case 'turn_end':
                 this.handleTurnEnd();
                 break;
+            case 'reflesh_hand':
+                this.handleRefleshHand(player);
+                break;
         }
+    }
+
+    handleRefleshHand(player) {
+        player.hand = [];
     }
 
     handlePlayPokemonActive(player, data) {
@@ -135,6 +143,11 @@ class GameState {
     handlePlayPokemonBench(player, data) {
         const pokemon = new Pokemon(new Card(data.pokemonName, 'pokemon'));
         player.bench.push(pokemon);
+
+        const cardIndex = player.hand.findIndex(c => c.name === data.pokemonName);
+        if (cardIndex >= 0) {
+            player.hand.splice(cardIndex, 1);
+        }
         console.log(`${player.name} played ${data.pokemonName} to Bench (${player.bench.length} Pokemon)`);
     }
 
@@ -234,6 +247,11 @@ class GameState {
 
         if (targetPokemon) {
             targetPokemon.energies.push(new Card(data.energyType, 'energy'));
+        }
+
+        const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
+        if (cardIndex >= 0) {
+            player.hand.splice(cardIndex, 1);
         }
     }
 

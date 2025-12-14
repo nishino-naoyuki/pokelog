@@ -258,11 +258,17 @@ class LogParser {
         if (cleanLine.match(/drew (a card|[\w\s]+)\.?$/)) {
             const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
             if (match) {
-                let cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
-                if (cardName.endsWith('.')) {
-                    cardName = cardName.slice(0, -1);
+                if (match[2] === 'a card' || match[2].includes(' cards.')) {
+                    //この場合、次の行に取得したカードが記載されている
+
                 }
-                return new Action('draw', this.getPlayerKey(match[1]), { cards: [cardName] }, timestamp);
+                else {
+                    let cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
+                    if (cardName.endsWith('.')) {
+                        cardName = cardName.slice(0, -1);
+                    }
+                    return new Action('draw', this.getPlayerKey(match[1]), { cards: [cardName] }, timestamp);
+                }
             }
         }
 
@@ -393,6 +399,12 @@ class LogParser {
                     count: count
                 }, timestamp);
             }
+        }
+
+        // Put hand on deck
+        if (cleanLine.includes('put') && cleanLine.includes('on the bottom of their deck.')) {
+            //reset hand
+            return new Action('reflesh_hand', this.getPlayerKey(playerName, null, timestamp));
         }
 
         // Move damage counters
