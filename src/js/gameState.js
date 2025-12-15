@@ -74,7 +74,7 @@ class GameState {
 
         switch (action.type) {
             case 'draw':
-                this.handleDraw(player, action.data);
+                this.handleDraw(player, action.data, action.player);
                 break;
             case 'play_pokemon_active':
                 this.handlePlayPokemonActive(player, action.data);
@@ -181,15 +181,20 @@ class GameState {
         console.warn('Undo functionality is simplified - rebuilding state');
     }
 
-    handleDraw(player, data) {
+    handleDraw(player, data, playerKey) {
         if (data.cards) {
+            // カード名がある場合は常に追加
             data.cards.forEach(cardName => {
                 player.hand.push(new Card(cardName, 'unknown'));
             });
         } else if (data.count) {
-            for (let i = 0; i < data.count; i++) {
-                player.hand.push(new Card('Unknown Card', 'unknown'));
+            // カード名なしの場合は、player1（自分）の時だけ追加
+            if (playerKey === 'player1') {
+                for (let i = 0; i < data.count; i++) {
+                    player.hand.push(new Card('Unknown Card', 'unknown'));
+                }
             }
+            // player2（相手）の場合は何もしない（アニメーションだけ表示される）
         }
     }
 
@@ -349,8 +354,8 @@ class GameState {
         const count = data.count || 1;
         for (let i = 0; i < count && player.prizeCount > 0; i++) {
             player.prizeCount--;
-            // Add prize card to hand (usually unknown)
-            player.hand.push(new Card('Prize Card', 'unknown'));
+            // Note: Prize cards are added to hand via separate "was added to" log entries
+            // which are parsed as draw actions with actual card names
         }
 
         console.log(`${player.name} took ${count} prize(s), ${player.prizeCount} remaining`);

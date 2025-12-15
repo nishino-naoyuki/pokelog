@@ -256,13 +256,43 @@ class LogParser {
 
         // Draw card
         if (cleanLine.match(/drew (a card|[\w\s]+)\.?$/)) {
+            console.log(`[DRAW PATH] Line ${this.currentLine + 1}: "${line}"`);
+            console.log('[DRAW PATH] Matched draw pattern');
             const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
             if (match) {
-                if (match[2] === 'a card' || match[2].includes(' cards.')) {
+                console.log('[DRAW PATH] match[1]:', match[1], 'match[2]:', match[2]);
+                if (match[2] === 'a card' || match[2].includes(' cards')) {
+                    console.log('[DRAW PATH] Checking for bullet point in next line');
                     //この場合、次の行に取得したカードが記載されている
-
+                    // パターン１: 「drew X cards.」の次の行に「   • カード名, カード名...」がある
+                    let tempLineIdx = this.currentLine + 1;
+                    if (tempLineIdx < this.lines.length) {
+                        const nextLine = this.lines[tempLineIdx].trim();
+                        console.log('[DRAW PATH] nextLine:', nextLine);
+                        // 次の行が「•」で始まる場合
+                        if (nextLine.includes('•') || nextLine.startsWith('•')) {
+                            console.log('[DRAW PATH] Found bullet point, returning with cards');
+                            const content = nextLine.replace(/^[•\s]+/, '').trim();
+                            const cards = content.split(',').map(c => c.trim());
+                            // 次の行を消費済みとしてマーク
+                            this.currentLine++;
+                            return new Action('draw', this.getPlayerKey(match[1]), { cards: cards }, timestamp);
+                        } else {
+                            console.log('[DRAW PATH] No bullet point found, extracting count');
+                            // bullet pointがない場合は、match[2]から数字を抽出してカウントベースのdrawを返す
+                            const countMatch = match[2].match(/(\d+) cards/);
+                            if (countMatch) {
+                                console.log('[DRAW PATH] Returning count-based draw:', countMatch[1]);
+                                return new Action('draw', this.getPlayerKey(match[1]), { count: parseInt(countMatch[1]) }, timestamp);
+                            } else if (match[2] === 'a card') {
+                                console.log('[DRAW PATH] Returning single card draw');
+                                return new Action('draw', this.getPlayerKey(match[1]), { count: 1 }, timestamp);
+                            }
+                        }
+                    }
                 }
                 else {
+                    console.log('[DRAW PATH] Single card name, returning');
                     let cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
                     if (cardName.endsWith('.')) {
                         cardName = cardName.slice(0, -1);
@@ -276,6 +306,10 @@ class LogParser {
         if (cleanLine.match(/drew (\d+) cards/)) {
             const match = cleanLine.match(/^(.+?) drew (\d+) cards/);
             if (match) {
+                console.log(`[DRAW DEBUG] Line ${this.currentLine + 1}: "${line}"`);
+                console.log('[DRAW DEBUG] cleanLine:', cleanLine);
+                console.log('[DRAW DEBUG] match[1]:', match[1]);
+                console.log('[DRAW DEBUG] playerKey:', this.getPlayerKey(match[1]));
                 return new Action('draw', this.getPlayerKey(match[1]), { count: parseInt(match[2]) }, timestamp);
             }
         }
@@ -359,6 +393,18 @@ class LogParser {
             if (singleMatch) {
                 return new Action('take_prize', this.getPlayerKey(singleMatch[1]), {
                     count: 1
+                }, timestamp);
+            }
+        }
+
+        // Card added to hand (prize cards)
+        // Pattern: "[CardName] was added to [Player]'s hand." or "A card was added to [Player]'s hand."
+        if (cleanLine.includes('was added to') && cleanLine.includes('hand')) {
+            const match = cleanLine.match(/^(.+?) was added to (.+?)'s hand\.?$/);
+            if (match) {
+                const cardName = match[1] === 'A card' ? 'Prize Card' : match[1];
+                return new Action('draw', this.getPlayerKey(match[2]), {
+                    cards: [cardName]
                 }, timestamp);
             }
         }
