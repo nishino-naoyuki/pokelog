@@ -14,6 +14,10 @@ class LogParser {
             this.lines = logContent.split('\n').map(line => line.trim());
             this.currentLine = 0;
 
+            // Reset player mapping
+            this.player1Name = null;
+            this.player2Name = null;
+
             const result = {
                 success: true,
                 data: {
@@ -101,12 +105,14 @@ class LogParser {
         // Assign players to player1/player2 on first encounter
         if (!setup.player1Name) {
             setup.player1Name = playerName;
+            this.player1Name = playerName; // Sync
             return setup.player1;
         } else if (setup.player1Name === playerName) {
             return setup.player1;
         } else {
             if (!setup.player2Name) {
                 setup.player2Name = playerName;
+                this.player2Name = playerName; // Sync
             }
             return setup.player2;
         }
@@ -159,12 +165,15 @@ class LogParser {
     }
 
     parseAction(line, playerName, timestamp) {
+        console.log(`[DEBUG] L.${this.currentLine}: Parsing action: ${line}`);
         // Skip child task markers but don't skip the line
         let cleanLine = line;
         if (line.startsWith('-')) {
             cleanLine = line.substring(1).trim();
             // Don't return early - process the cleaned line
         }
+
+
 
         // Play Pokemon to Active Spot
         if (cleanLine.includes('played') && cleanLine.includes('to the Active Spot')) {
@@ -179,6 +188,39 @@ class LogParser {
         // Play Pokemon to Bench
         // Handle "played [Name] to the Bench" AND "played them/it to the Bench" followed by bullets
         if (cleanLine.includes('played') && cleanLine.includes('to the Bench')) {
+
+            // Special Case: "Player drew X cards and played them to the Bench."
+            // We need to handle this first or ensure regex is strict.
+            const drawAndPlayMatch = cleanLine.match(/^(.+?) drew \d+ cards? and played them to the Bench/);
+            if (drawAndPlayMatch) {
+                const playerName = drawAndPlayMatch[1];
+                // Proceed to look for bullets logic reusing existing logic structure?
+                // Or just set match manually?
+                // Let's integrate into the main match block below by normalizing or separate if block?
+                // Separate block is safer.
+
+                // Look ahead logic (same as generalized logic)
+                const newActions = [];
+                let tempLineIdx = this.currentLine + 1;
+                while (tempLineIdx < this.lines.length) {
+                    const nextLine = this.lines[tempLineIdx].trim();
+                    if (nextLine.includes('•') || nextLine.startsWith('•')) {
+                        const content = nextLine.replace(/^[•\s]+/, '').trim();
+                        const cards = content.split(',').map(c => c.trim());
+                        cards.forEach(c => {
+                            newActions.push(new Action('play_pokemon_bench', this.getPlayerKey(playerName), {
+                                pokemonName: c
+                            }, timestamp));
+                        });
+                        this.currentLine++;
+                        tempLineIdx++;
+                    } else {
+                        break;
+                    }
+                }
+                if (newActions.length > 0) return newActions;
+            }
+
             const match = cleanLine.match(/^(.+?) played (.+?) to the Bench/);
             if (match) {
                 const playerName = match[1];
@@ -256,43 +298,42 @@ class LogParser {
 
         // Draw card
         if (cleanLine.match(/drew (a card|[\w\s]+)\.?$/)) {
-            console.log(`[DRAW PATH] Line ${this.currentLine + 1}: "${line}"`);
-            console.log('[DRAW PATH] Matched draw pattern');
+
             const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
             if (match) {
-                console.log('[DRAW PATH] match[1]:', match[1], 'match[2]:', match[2]);
+
                 if (match[2] === 'a card' || match[2].includes(' cards')) {
-                    console.log('[DRAW PATH] Checking for bullet point in next line');
+
                     //この場合、次の行に取得したカードが記載されている
                     // パターン１: 「drew X cards.」の次の行に「   • カード名, カード名...」がある
                     let tempLineIdx = this.currentLine + 1;
                     if (tempLineIdx < this.lines.length) {
                         const nextLine = this.lines[tempLineIdx].trim();
-                        console.log('[DRAW PATH] nextLine:', nextLine);
+
                         // 次の行が「•」で始まる場合
                         if (nextLine.includes('•') || nextLine.startsWith('•')) {
-                            console.log('[DRAW PATH] Found bullet point, returning with cards');
+
                             const content = nextLine.replace(/^[•\s]+/, '').trim();
                             const cards = content.split(',').map(c => c.trim());
                             // 次の行を消費済みとしてマーク
                             this.currentLine++;
                             return new Action('draw', this.getPlayerKey(match[1]), { cards: cards }, timestamp);
                         } else {
-                            console.log('[DRAW PATH] No bullet point found, extracting count');
+
                             // bullet pointがない場合は、match[2]から数字を抽出してカウントベースのdrawを返す
                             const countMatch = match[2].match(/(\d+) cards/);
                             if (countMatch) {
-                                console.log('[DRAW PATH] Returning count-based draw:', countMatch[1]);
+
                                 return new Action('draw', this.getPlayerKey(match[1]), { count: parseInt(countMatch[1]) }, timestamp);
                             } else if (match[2] === 'a card') {
-                                console.log('[DRAW PATH] Returning single card draw');
+
                                 return new Action('draw', this.getPlayerKey(match[1]), { count: 1 }, timestamp);
                             }
                         }
                     }
                 }
                 else {
-                    console.log('[DRAW PATH] Single card name, returning');
+
                     let cardName = match[2] === 'a card' ? 'Unknown Card' : match[2];
                     if (cardName.endsWith('.')) {
                         cardName = cardName.slice(0, -1);
@@ -306,10 +347,7 @@ class LogParser {
         if (cleanLine.match(/drew (\d+) cards/)) {
             const match = cleanLine.match(/^(.+?) drew (\d+) cards/);
             if (match) {
-                console.log(`[DRAW DEBUG] Line ${this.currentLine + 1}: "${line}"`);
-                console.log('[DRAW DEBUG] cleanLine:', cleanLine);
-                console.log('[DRAW DEBUG] match[1]:', match[1]);
-                console.log('[DRAW DEBUG] playerKey:', this.getPlayerKey(match[1]));
+
                 return new Action('draw', this.getPlayerKey(match[1]), { count: parseInt(match[2]) }, timestamp);
             }
         }
@@ -332,14 +370,25 @@ class LogParser {
             }
         }
 
-        // Attach energy
-        if (cleanLine.includes('attached') && cleanLine.includes('Energy')) {
+        // Attach card (Energy or Tool)
+        if (cleanLine.includes('attached')) {
             const match = cleanLine.match(/^(.+?) attached (.+?) to (.+)/);
             if (match) {
-                return new Action('attach_energy', this.getPlayerKey(match[1]), {
-                    energyType: match[2],
-                    target: match[3]
-                }, timestamp);
+                const cardName = match[2];
+                // Check if it's Energy
+                if (cardName.includes('Energy') || cardName === 'Double Colorless' || cardName === 'Rainbow Energy') { // Simple heuristic
+                    return new Action('attach_energy', this.getPlayerKey(match[1]), {
+                        energyType: match[2],
+                        cardName: match[2], // Fix: Add cardName for hand removal
+                        target: match[3]
+                    }, timestamp);
+                } else {
+                    // Assume it's a Tool (e.g. Vitality Band, Technical Machine)
+                    return new Action('attach_tool', this.getPlayerKey(match[1]), {
+                        cardName: match[2],
+                        target: match[3]
+                    }, timestamp);
+                }
             }
         }
 
@@ -453,6 +502,14 @@ class LogParser {
             return new Action('reflesh_hand', this.getPlayerKey(playerName, null, timestamp));
         }
 
+        // Shuffle deck
+        if (cleanLine.includes('shuffled their deck')) {
+            const match = cleanLine.match(/^(.+?) shuffled their deck/);
+            if (match) {
+                return new Action('shuffle_deck', this.getPlayerKey(match[1]), {}, timestamp);
+            }
+        }
+
         // Move damage counters
         if (cleanLine.includes('moved') && cleanLine.includes('damage counter')) {
             const match = cleanLine.match(/^(.+?) moved (\d+|a) damage counter(?:s)? from (.+?) to (.+?)\.?$/);
@@ -498,21 +555,46 @@ class LogParser {
     }
 
     getPlayerKey(playerName) {
-        // This is simplified - in real implementation we'd track player names
-        // For now, we'll use a simple mapping
-        return playerName.includes('Smile') || playerName.includes('0512') ? 'player1' : 'player2';
+        // Dynamic player key resolution
+
+        if (!this.player1Name) {
+            this.player1Name = playerName;
+            return 'player1';
+        }
+
+        if (this.player1Name === playerName) {
+            return 'player1';
+        }
+
+        if (!this.player2Name) {
+            this.player2Name = playerName;
+            return 'player2';
+        }
+
+        if (this.player2Name === playerName) {
+            return 'player2';
+        }
+
+        // Unknown player, defaulting to player2 (opponent)
+        return 'player2';
     }
 
     extractPlayerNames(data) {
         // Extract from setup first
         if (data.setup.player1Name) {
             data.player1Name = data.setup.player1Name;
+            this.player1Name = data.setup.player1Name;
         }
         if (data.setup.player2Name) {
             data.player2Name = data.setup.player2Name;
+            this.player2Name = data.setup.player2Name;
         }
 
-        // If still not found, extract from actions
+        // If still not found, check instance variables first
+        if (!data.player1Name && this.player1Name) data.player1Name = this.player1Name;
+        if (!data.player2Name && this.player2Name) data.player2Name = this.player2Name;
+
+        // If still not found, extract from actions (fallback scan)
         if (!data.player1Name || !data.player2Name) {
             const playerNames = new Set();
 

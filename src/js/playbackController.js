@@ -47,6 +47,14 @@ class PlaybackController {
             this.pause();
             return;
         }
+        // Check next action for pre-execution effects (specifically knockout which removes elements)
+        const nextActionIndex = this.gameState.currentActionIndex + 1;
+        if (nextActionIndex < this.gameState.actions.length) {
+            const nextAction = this.gameState.actions[nextActionIndex];
+            if (nextAction.type === 'knockout') {
+                this.ui.showKnockoutEffect(nextAction.player, nextAction.data.pokemonName);
+            }
+        }
 
         const action = this.gameState.executeNextAction();
         await this.renderCurrentState();
@@ -60,6 +68,25 @@ class PlaybackController {
             } else if (action.data.cards) {
                 this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.cards.length);
             }
+        }
+
+        if (action.type === 'shuffle_deck') {
+            this.ui.animateShuffle(isPlayer ? 'player1' : 'player2');
+        }
+
+        if (action.type === 'attach_energy') {
+            // Target is in action.data.target not pokemonName
+            this.ui.animateEnergyAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
+        }
+
+        if (action.type === 'attach_tool') {
+            this.ui.animateToolAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
+        }
+
+        if (action.type === 'switch_active' || action.type === 'retreat') {
+            this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
+        } else if (action.type === 'play_pokemon_active') {
+            this.ui.animateActiveMove(isPlayer ? 'player1' : 'player2');
         }
 
         if (action.type === 'play_card') {

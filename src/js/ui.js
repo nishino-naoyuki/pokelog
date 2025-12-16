@@ -167,7 +167,6 @@ class UI {
             card.appendChild(damageCounter);
         }
 
-        // Special conditions
         if (pokemon.specialConditions.length > 0) {
             const conditions = document.createElement('div');
             conditions.className = 'special-conditions';
@@ -176,6 +175,15 @@ class UI {
                 conditions.textContent += icon;
             });
             card.appendChild(conditions);
+        }
+
+        // Knocked Out Effect
+        if (pokemon.isKnockedOut) {
+            card.classList.add('knocked-out');
+            const koOverlay = document.createElement('div');
+            koOverlay.className = 'knockout-overlay';
+            koOverlay.textContent = 'きぜつ'; // Request: Japanese
+            card.appendChild(koOverlay);
         }
 
         // Energy display
@@ -189,13 +197,43 @@ class UI {
             card.appendChild(energyDisplay);
         }
 
-        // Tool display
         if (pokemon.tools.length > 0) {
-            const toolDisplay = document.createElement('div');
-            toolDisplay.className = 'tool-display';
-            toolDisplay.textContent = '🔧';
-            card.appendChild(toolDisplay);
+            // Visualizing the tool BEHIND the pokemon card
+            // We'll create a container or place it absolutely within the card
+            // Request: "See tool name and image slightly". Z-Order lowest.
+
+            pokemon.tools.forEach((tool, index) => {
+                const toolEl = document.createElement('div');
+                toolEl.className = 'attached-tool';
+                toolEl.style.zIndex = '-1'; // Behind
+
+                // Offset to make it visible
+                // Shift right/down or top/left?
+                // Example: slightly to the left and top
+                toolEl.style.top = '-15px';
+                toolEl.style.left = '-15px';
+                toolEl.style.transform = `rotate(-5deg)`;
+
+                const img = document.createElement('img');
+                // Use placeholder initially or empty
+                img.src = '';
+
+                toolEl.appendChild(img);
+                card.appendChild(toolEl);
+
+                // Fetch image async
+                cardMapper.getCardImage(tool.name).then(src => {
+                    img.src = src;
+                }).catch(err => {
+                    console.warn('Failed to load tool image:', tool.name);
+                });
+            });
         }
+
+        // Check for new active status for animation (logic needs to drive this class)
+        // For now, PlaybackController might need to trigger specific animations
+        // BUT, we can check if this is the "new active" based on a flag or previous state?
+        // Simpler: Trigger animation explicitly via methods like showAttackEffect.
 
         // Click handler for detail popup
         card.addEventListener('click', () => {
@@ -513,6 +551,238 @@ class UI {
             setTimeout(() => {
                 card.remove();
             }, 1000 + (i * 100));
+        }
+    }
+
+    animateShuffle(playerKey) {
+        const isPlayer = playerKey === 'player1';
+        const deckEl = isPlayer
+            ? document.querySelector('.self-area .card-back')  // Target the card back visual
+            : document.querySelector('.opponent-area .card-back');
+
+        if (deckEl) {
+            // Remove class to reset if needed
+            deckEl.classList.remove('animate-shuffle');
+            void deckEl.offsetWidth; // Trigger reflow
+            deckEl.classList.add('animate-shuffle');
+
+            // Add floating cards effect
+            const container = deckEl.parentElement;
+            if (container) {
+                for (let i = 0; i < 3; i++) {
+                    const floater = document.createElement('div');
+                    floater.className = 'shuffle-effect-card';
+                    floater.style.animationDelay = `${i * 0.1}s`;
+                    deckEl.appendChild(floater);
+                    setTimeout(() => floater.remove(), 1500);
+                }
+            }
+        }
+    }
+
+    animateActiveMove(playerKey) {
+        const isPlayer = playerKey === 'player1';
+        const activeEl = isPlayer
+            ? document.querySelector('#player-active .pokemon-card')
+            : document.querySelector('#opponent-active .pokemon-card');
+
+        if (activeEl) {
+            activeEl.classList.add('animate-move-to-active');
+            setTimeout(() => {
+                activeEl.classList.remove('animate-move-to-active');
+            }, 600);
+        }
+    }
+
+    showKnockoutEffect(playerKey, pokemonName) {
+        const isPlayer = playerKey === 'player1';
+        const prefix = isPlayer ? 'player' : 'opponent';
+
+        // Find the pokemon card element. 
+        // It might be in active or bench.
+        // We search both.
+        const activeContainer = document.getElementById(`${prefix}-active`);
+        let targetCard = null;
+
+        // Check active
+        if (activeContainer) {
+            const card = activeContainer.querySelector(`.pokemon-card[data-card-name="${pokemonName}"]`);
+            if (card) targetCard = card;
+        }
+
+        // Check bench if not found
+        if (!targetCard) {
+            const benchContainer = document.getElementById(`${prefix}-bench`);
+            if (benchContainer) {
+                const card = benchContainer.querySelector(`.pokemon-card[data-card-name="${pokemonName}"]`);
+                if (card) targetCard = card;
+            }
+        }
+
+        if (targetCard) {
+            // Clone it for the ghost effect
+            const rect = targetCard.getBoundingClientRect();
+            const clone = targetCard.cloneNode(true);
+
+            clone.style.position = 'fixed';
+            clone.style.top = `${rect.top}px`;
+            clone.style.left = `${rect.left}px`;
+            clone.style.width = `${rect.width}px`;
+            clone.style.height = `${rect.height}px`;
+            clone.style.margin = '0';
+            clone.style.zIndex = '1000';
+            clone.classList.remove('large', 'small'); // Remove naming classes that might affect layout
+            // Scale is handled by width/height above? 
+            // Original card has class .large or .small which sets width/height.
+            // We set explicit pixels so it matches exactly.
+
+            // Add knockout style
+            clone.classList.add('knocked-out');
+
+            // Ensure overlay exists (if not already there)
+            if (!clone.querySelector('.knockout-overlay')) {
+                const koOverlay = document.createElement('div');
+                koOverlay.className = 'knockout-overlay';
+                koOverlay.textContent = 'きぜつ';
+                clone.appendChild(koOverlay);
+            }
+
+            document.body.appendChild(clone);
+
+            // Remove after animation (1s defined in CSS)
+            setTimeout(() => {
+                clone.remove();
+            }, 1500);
+        }
+    }
+
+
+    animateEnergyAttach(playerKey, cardName, targetName) {
+        this.animateCardFly(playerKey, cardName, targetName, 'energy');
+    }
+
+    animateToolAttach(playerKey, cardName, targetName) {
+        this.animateCardFly(playerKey, cardName, targetName, 'tool');
+    }
+
+    animateCardFly(playerKey, cardName, targetName, type) {
+        const isPlayer = playerKey === 'player1';
+        const deckArea = isPlayer ? document.getElementById('player-hand') : document.querySelector('.opponent-area'); // Opponent hand virtual
+
+        // Find target element
+        const prefix = isPlayer ? 'player' : 'opponent';
+        const activeContainer = document.getElementById(`${prefix}-active`);
+        let targetEl = null;
+
+        // Try Active
+        const activeCard = activeContainer?.querySelector('.pokemon-card');
+        if (activeCard && activeCard.dataset.cardName === targetName) {
+            targetEl = activeCard;
+        }
+
+        // Try Bench
+        if (!targetEl) {
+            const benchContainer = document.getElementById(`${prefix}-bench`);
+            const benchCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${targetName}"]`);
+            if (benchCard) targetEl = benchCard;
+
+            // Fallback: Check active again if name match fails but target string implies active
+            // (We rely on logParser passing targetName correctly)
+            if (!targetEl && activeCard && type === 'energy') {
+                // For energy, sometimes target name parsing is fuzzy
+                // Allow fallback to active if only one choice basically
+            }
+        }
+
+        if (deckArea && targetEl) {
+            const startRect = deckArea.getBoundingClientRect(); // Rough center of hand
+            const endRect = targetEl.getBoundingClientRect();
+
+            const flyer = document.createElement('div');
+            flyer.className = 'fly-card-animation';
+            if (type === 'energy') flyer.classList.add('fly-energy');
+            if (type === 'tool') flyer.classList.add('fly-tool');
+
+            // Set start pos (center of hand)
+            flyer.style.left = `${startRect.left + startRect.width / 2}px`;
+            flyer.style.top = `${startRect.top}px`;
+
+            document.body.appendChild(flyer);
+
+            // Animate
+            requestAnimationFrame(() => {
+                flyer.style.transform = `translate(${endRect.left - (startRect.left + startRect.width / 2)}px, ${endRect.top - startRect.top}px) scale(0.5)`;
+                flyer.style.opacity = '0';
+            });
+
+            setTimeout(() => flyer.remove(), 600);
+        }
+    }
+
+    animateSwap(playerKey, newActiveName) {
+        const isPlayer = playerKey === 'player1';
+        const prefix = isPlayer ? 'player' : 'opponent';
+
+        const activeContainer = document.getElementById(`${prefix}-active`);
+        const benchContainer = document.getElementById(`${prefix}-bench`);
+
+        const oldActiveCard = activeContainer?.querySelector('.pokemon-card');
+        const newActiveCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${newActiveName}"]`);
+
+        if (oldActiveCard && newActiveCard) {
+            // Create clones
+            const oldRect = oldActiveCard.getBoundingClientRect();
+            const newRect = newActiveCard.getBoundingClientRect();
+
+            const oldClone = oldActiveCard.cloneNode(true);
+            const newClone = newActiveCard.cloneNode(true);
+
+            // Setup Clones
+            [oldClone, newClone].forEach(c => {
+                c.style.position = 'fixed';
+                c.style.margin = '0';
+                c.style.zIndex = '1000';
+                c.style.transition = 'transform 0.6s ease-in-out';
+                c.classList.remove('large', 'small');
+                // We use explicit sizing, so remove class-based sizing to avoid conflicts during transition if applied
+            });
+
+            // Start Positions
+            oldClone.style.top = `${oldRect.top}px`;
+            oldClone.style.left = `${oldRect.left}px`;
+            oldClone.style.width = `${oldRect.width}px`;
+            oldClone.style.height = `${oldRect.height}px`;
+
+            newClone.style.top = `${newRect.top}px`;
+            newClone.style.left = `${newRect.left}px`;
+            newClone.style.width = `${newRect.width}px`;
+            newClone.style.height = `${newRect.height}px`;
+
+            document.body.appendChild(oldClone);
+            document.body.appendChild(newClone);
+
+            // Animate swap
+            requestAnimationFrame(() => {
+                // Old goes to New pos
+                const xDestOld = newRect.left - oldRect.left;
+                const yDestOld = newRect.top - oldRect.top;
+
+                oldClone.style.transform = `translate(${xDestOld}px, ${yDestOld}px)`;
+                oldClone.style.width = `${newRect.width}px`; // Shrink
+                oldClone.style.height = `${newRect.height}px`;
+
+                const xDestNew = oldRect.left - newRect.left;
+                const yDestNew = oldRect.top - newRect.top;
+
+                newClone.style.transform = `translate(${xDestNew}px, ${yDestNew}px)`;
+                newClone.style.width = `${oldRect.width}px`; // Grow
+                newClone.style.height = `${oldRect.height}px`;
+            });
+
+            setTimeout(() => {
+                oldClone.remove();
+                newClone.remove();
+            }, 700);
         }
     }
 

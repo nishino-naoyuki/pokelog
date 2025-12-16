@@ -1,5 +1,177 @@
 /* Pokemon TCG Log Replay App - Styles */
 
+/* ===== NEW VISUAL EFFECTS ===== */
+
+/* 1. Active Move Effect */
+@keyframes moveToActive {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2) translateY(-20px);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.animate-move-to-active {
+    animation: moveToActive 0.6s ease-in-out;
+    z-index: 100;
+}
+
+/* 2. Knockout Effect */
+@keyframes knockoutFade {
+    0% {
+        opacity: 1;
+        filter: grayscale(0);
+    }
+
+    100% {
+        opacity: 0.4;
+        filter: grayscale(100%) brightness(0.5);
+    }
+}
+
+.knockout-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #FF0000;
+    font-size: 24px;
+    font-weight: 900;
+    text-shadow: 2px 2px 0 #FFF, -1px -1px 0 #FFF, 1px -1px 0 #FFF, -1px 1px 0 #FFF, 1px 1px 0 #FFF;
+    z-index: 20;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.pokemon-card.knocked-out {
+    animation: knockoutFade 1s forwards;
+}
+
+/* Ensure overlay is visible when class is applied */
+.pokemon-card.knocked-out .knockout-overlay {
+    display: block;
+}
+
+@keyframes popIn {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* 3. Shuffle Effect */
+@keyframes shuffleShake {
+    0% {
+        transform: translateX(0) rotate(0);
+    }
+
+    25% {
+        transform: translateX(-5px) rotate(-5deg);
+    }
+
+    50% {
+        transform: translateX(5px) rotate(5deg);
+    }
+
+    75% {
+        transform: translateX(-5px) rotate(-5deg);
+    }
+
+    100% {
+        transform: translateX(0) rotate(0);
+    }
+}
+
+@keyframes shuffleCard {
+    0% {
+        transform: translateX(0);
+        z-index: 1;
+    }
+
+    50% {
+        transform: translateX(15px) translateY(-5px);
+        z-index: 10;
+    }
+
+    100% {
+        transform: translateX(0);
+        z-index: 1;
+    }
+}
+
+.animate-shuffle {
+    animation: shuffleShake 0.5s ease-in-out 3;
+    /* Shake 3 times */
+}
+
+/* Extra card animation for deck shuffle */
+.shuffle-effect-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: inherit;
+    border: inherit;
+    border-radius: inherit;
+    box-shadow: inherit;
+    animation: shuffleCard 0.4s ease-in-out infinite;
+}
+
+/* Flying Card Animation (Energy/Tools) */
+.fly-card-animation {
+    position: fixed;
+    width: var(--card-width-small);
+    height: var(--card-height-small);
+    background: #4A90E2;
+    /* Default blue back */
+    border: 1px solid #FFF;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 5000;
+    transition: transform 0.6s ease-in-out, opacity 0.6s ease-in;
+}
+
+.fly-energy {
+    background: #F1C40F;
+    /* Yellow-ish for generic energy */
+}
+
+.fly-tool {
+    background: #95A5A6;
+    /* Grey for tool */
+}
+
+/* Attached Tool Visual */
+.attached-tool {
+    position: absolute;
+    width: 60px;
+    /* Smaller than full card */
+    height: 84px;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: -2px -2px 5px rgba(0, 0, 0, 0.3);
+    border: 1px solid #FFF;
+    background: #333;
+}
+
+.attached-tool img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 /* Design System */
 :root {
     --color-primary: #4A90E2;

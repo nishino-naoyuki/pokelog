@@ -94,6 +94,9 @@ class GameState {
             case 'attach_energy':
                 this.handleAttachEnergy(player, action.data);
                 break;
+            case 'attach_tool':
+                this.handleAttachTool(player, action.data);
+                break;
             case 'use_attack':
                 this.handleUseAttack(player, opponent, action.data);
                 break;
@@ -126,6 +129,9 @@ class GameState {
                 break;
             case 'reflesh_hand':
                 this.handleRefleshHand(player);
+                break;
+            case 'shuffle_deck':
+                console.log(`${player.name} shuffled their deck`);
                 break;
         }
     }
@@ -188,13 +194,11 @@ class GameState {
                 player.hand.push(new Card(cardName, 'unknown'));
             });
         } else if (data.count) {
-            // カード名なしの場合は、player1（自分）の時だけ追加
-            if (playerKey === 'player1') {
-                for (let i = 0; i < data.count; i++) {
-                    player.hand.push(new Card('Unknown Card', 'unknown'));
-                }
+            // カード名なしの場合は、枚数分Unknown Cardを追加
+            for (let i = 0; i < data.count; i++) {
+                player.hand.push(new Card('Unknown Card', 'unknown'));
             }
-            // player2（相手）の場合は何もしない（アニメーションだけ表示される）
+            // お互いの手札枚数を正しく管理するため、player1/player2関係なく追加する
         }
     }
 
@@ -231,24 +235,7 @@ class GameState {
 
     handleAttachEnergy(player, data) {
         // Parse target to find correct pokemon
-        const targetLower = data.target.toLowerCase();
-        let targetPokemon = null;
-
-        if (targetLower.includes('active spot')) {
-            targetPokemon = player.activePokemon;
-        } else if (targetLower.includes('bench')) {
-            // Find pokemon on bench by name
-            const pokemonName = data.target.split(' ')[0];
-            targetPokemon = player.bench.find(p => p.card.name === pokemonName);
-        } else {
-            // Try to find by name in active or bench
-            const pokemonName = data.target.split(' ')[0];
-            if (player.activePokemon && player.activePokemon.card.name === pokemonName) {
-                targetPokemon = player.activePokemon;
-            } else {
-                targetPokemon = player.bench.find(p => p.card.name === pokemonName);
-            }
-        }
+        const targetPokemon = this.findPokemonByTarget(player, data.target);
 
         if (targetPokemon) {
             targetPokemon.energies.push(new Card(data.energyType, 'energy'));
@@ -257,6 +244,37 @@ class GameState {
         const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
         if (cardIndex >= 0) {
             player.hand.splice(cardIndex, 1);
+        }
+    }
+
+    handleAttachTool(player, data) {
+        const targetPokemon = this.findPokemonByTarget(player, data.target);
+
+        if (targetPokemon) {
+            targetPokemon.tools.push(new Card(data.cardName, 'tool'));
+        }
+
+        const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
+        if (cardIndex >= 0) {
+            player.hand.splice(cardIndex, 1);
+        }
+    }
+
+    findPokemonByTarget(player, targetStr) {
+        const targetLower = targetStr.toLowerCase();
+
+        if (targetLower.includes('active spot')) {
+            return player.activePokemon;
+        } else if (targetLower.includes('bench')) {
+            const pokemonName = targetStr.split(' ')[0];
+            return player.bench.find(p => p.card.name === pokemonName);
+        } else {
+            const pokemonName = targetStr.split(' ')[0];
+            if (player.activePokemon && player.activePokemon.card.name === pokemonName) {
+                return player.activePokemon;
+            } else {
+                return player.bench.find(p => p.card.name === pokemonName);
+            }
         }
     }
 
