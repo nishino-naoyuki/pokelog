@@ -491,6 +491,12 @@ class GameState {
             pokemon.card.name = data.to;
             pokemon.evolutionStage += 1;
             pokemon.specialConditions = [];
+
+            // Consume card from hand
+            const cardIndex = player.hand.findIndex(c => c.name === data.to);
+            if (cardIndex >= 0) {
+                player.hand.splice(cardIndex, 1);
+            }
         } else {
             console.warn(`Could not find pokemon to evolve: ${data.from} -> ${data.to}`);
         }

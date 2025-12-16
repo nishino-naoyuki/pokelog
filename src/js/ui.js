@@ -783,7 +783,66 @@ class UI {
                 oldClone.remove();
                 newClone.remove();
             }, 700);
+        } else if (oldActiveCard) {
+            // Fallback: If no new active card found (e.g. empty bench or parsing issue),
+            // still animate the old active retreating to bench area
+            const oldRect = oldActiveCard.getBoundingClientRect();
+            const oldClone = oldActiveCard.cloneNode(true);
+
+            // Setup Clone
+            oldClone.style.position = 'fixed';
+            oldClone.style.margin = '0';
+            oldClone.style.zIndex = '1000';
+            oldClone.style.transition = 'transform 0.6s ease-in-out';
+            oldClone.classList.remove('large', 'small');
+
+            oldClone.style.top = `${oldRect.top}px`;
+            oldClone.style.left = `${oldRect.left}px`;
+            oldClone.style.width = `${oldRect.width}px`;
+            oldClone.style.height = `${oldRect.height}px`;
+
+            document.body.appendChild(oldClone);
+
+            // Animate to SOME bench position (first slot?)
+            const firstBench = benchContainer?.firstElementChild; // .bench-slot
+            if (firstBench) {
+                const benchRect = firstBench.getBoundingClientRect();
+                requestAnimationFrame(() => {
+                    const xDest = benchRect.left - oldRect.left;
+                    const yDest = benchRect.top - oldRect.top;
+                    oldClone.style.transform = `translate(${xDest}px, ${yDest}px) scale(0.6)`;
+                });
+            }
+
+            setTimeout(() => {
+                oldClone.remove();
+            }, 700);
         }
+    }
+
+    showTurnIndicator(turnNumber, playerName) {
+        // Remove existing indicator if any
+        const existing = document.querySelector('.turn-indicator');
+        if (existing) existing.remove();
+
+        const indicator = document.createElement('div');
+        indicator.className = 'turn-indicator';
+
+        const turnTitle = document.createElement('h2');
+        turnTitle.textContent = `${turnNumber}ターン目`;
+
+        const turnPlayer = document.createElement('p');
+        turnPlayer.textContent = `${playerName} のターン`;
+
+        indicator.appendChild(turnTitle);
+        indicator.appendChild(turnPlayer);
+
+        document.body.appendChild(indicator);
+
+        // CSS animation handles fade in/out
+        setTimeout(() => {
+            indicator.remove();
+        }, 3000);
     }
 
     getEnergyIcon(energyName) {

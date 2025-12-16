@@ -11,6 +11,8 @@ class PlaybackController {
         this.playbackTimer = null;
 
         this.initControls();
+        this.lastTurnNumber = 0;
+        this.lastActivePlayer = '';
         // Don't render here - let app.js handle initial render
     }
 
@@ -47,20 +49,48 @@ class PlaybackController {
             this.pause();
             return;
         }
-        // Check next action for pre-execution effects (specifically knockout which removes elements)
-        const nextActionIndex = this.gameState.currentActionIndex + 1;
-        if (nextActionIndex < this.gameState.actions.length) {
-            const nextAction = this.gameState.actions[nextActionIndex];
-            if (nextAction.type === 'knockout') {
-                this.ui.showKnockoutEffect(nextAction.player, nextAction.data.pokemonName);
-            }
+
+        const action = this.gameState.actions[this.gameState.currentActionIndex];
+
+        // --- Turn Indicator Logic ---
+        // Check if turn/player changed from last state
+        if (this.gameState.turnNumber !== this.lastTurnNumber || this.gameState.activePlayer !== this.lastActivePlayer) {
+            const currentPlayerName = this.gameState.players[this.gameState.activePlayer].name;
+            this.ui.showTurnIndicator(this.gameState.turnNumber, currentPlayerName);
+
+            this.lastTurnNumber = this.gameState.turnNumber;
+            this.lastActivePlayer = this.gameState.activePlayer;
+        }
+        const isPlayer = action.player === 'player1';
+
+        // Check next action for pre-execution        
+        // --- Pre-render Animations (trigger before DOM update for smooth transitions) ---
+
+        // Knockout: show effect on dying pokemon before it's removed
+        const nextAction = this.gameState.actions[this.gameState.currentActionIndex + 1];
+        if (nextAction && nextAction.type === 'knockout') {
+            // Logic: Check if NEXT action is knockout, execute its visual now
+            // But wait, the current action is 'action'.
+            // The original code was peeking ahead?
+            // Actually, if the CURRENT action is causing a knockout (like damage), the knockout action follows.
+            // We need to look ahead for knockout action.
+            this.ui.showKnockoutEffect(nextAction.player, nextAction.data.pokemonName);
         }
 
-        const action = this.gameState.executeNextAction();
+        // Check if THIS action involves movement/swap, so we can animate existing elements
+
+        if (action.type === 'switch_active' || action.type === 'retreat') {
+            this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
+        } else if (action.type === 'play_pokemon_active') {
+            this.ui.animateActiveMove(isPlayer ? 'player1' : 'player2');
+        }
+
+        // --- Execute Action & Render ---
+        this.gameState.executeNextAction();
         await this.renderCurrentState();
         this.addActionLog(action);
 
-        const isPlayer = action.player === 'player1';
+        // --- Post-render Animations (effects that need updated DOM or simple overlays) ---
 
         if (action.type === 'draw') {
             if (action.data.count) {
@@ -81,12 +111,6 @@ class PlaybackController {
 
         if (action.type === 'attach_tool') {
             this.ui.animateToolAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
-        }
-
-        if (action.type === 'switch_active' || action.type === 'retreat') {
-            this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
-        } else if (action.type === 'play_pokemon_active') {
-            this.ui.animateActiveMove(isPlayer ? 'player1' : 'player2');
         }
 
         if (action.type === 'play_card') {
