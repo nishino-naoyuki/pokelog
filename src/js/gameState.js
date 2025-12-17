@@ -8,7 +8,8 @@ class GameState {
             player2: new PlayerState(parseData.player2Name || 'Player2')
         };
 
-        this.activePlayer = 'player1';
+        this.activePlayer = parseData.startingPlayer || 'player1';
+        this.initialStartingPlayer = this.activePlayer;
         this.turnNumber = 1;
         this.stadium = null;
         this.actions = parseData.actions || [];
@@ -130,6 +131,12 @@ class GameState {
             case 'reflesh_hand':
                 this.handleRefleshHand(player);
                 break;
+            case 'discard':
+                this.handleDiscard(player, action.data);
+                break;
+            case 'discard_from_pokemon':
+                this.handleDiscardFromPokemon(player, action.data);
+                break;
             case 'shuffle_deck':
                 console.log(`${player.name} shuffled their deck`);
                 break;
@@ -154,7 +161,59 @@ class GameState {
         if (cardIndex >= 0) {
             player.hand.splice(cardIndex, 1);
         }
-        console.log(`${player.name} played ${data.pokemonName} to Bench (${player.bench.length} Pokemon)`);
+    }
+
+    handleDiscard(player, data) {
+        if (data.cards) {
+            data.cards.forEach(cardName => {
+                // Find card in hand
+                const index = player.hand.findIndex(c => c.name === cardName);
+                if (index !== -1) {
+                    const card = player.hand.splice(index, 1)[0];
+                    player.discardPile.push(card);
+                } else {
+                    // If unknown or not found (e.g. from deck/dummy), just create and push
+                    player.discardPile.push(new Card(cardName, 'unknown'));
+                }
+            });
+            console.log(`${player.name} discarded ${data.cards.join(', ')}`);
+        }
+    }
+
+    handleDiscardFromPokemon(player, data) {
+        // Find pokemon active or bench
+        let pokemon = null;
+        if (player.activePokemon && player.activePokemon.card.name === data.pokemonName) {
+            pokemon = player.activePokemon;
+        } else {
+            pokemon = player.bench.find(p => p.card.name === data.pokemonName);
+        }
+
+        if (pokemon) {
+            // Check energies
+            const energyIndex = pokemon.energies.findIndex(c => c.name === data.cardName);
+            if (energyIndex !== -1) {
+                const card = pokemon.energies.splice(energyIndex, 1)[0];
+                player.discardPile.push(card);
+                console.log(`Discarded energy ${data.cardName} from ${data.pokemonName}`);
+                return;
+            }
+
+            // Check tools
+            const toolIndex = pokemon.tools.findIndex(c => c.name === data.cardName);
+            if (toolIndex !== -1) {
+                const card = pokemon.tools.splice(toolIndex, 1)[0];
+                player.discardPile.push(card);
+                console.log(`Discarded tool ${data.cardName} from ${data.pokemonName}`);
+                return;
+            }
+
+            // If not found in attached cards, it might be the pokemon itself (conceptually impossible for 'discarded from')
+            // but just in case or if log name mismatch
+            console.warn(`Could not find attached card ${data.cardName} on ${data.pokemonName}`);
+        } else {
+            console.warn(`Could not find pokemon ${data.pokemonName} for discard`);
+        }
     }
 
     handleSwitchActive(player, data) {
@@ -505,7 +564,7 @@ class GameState {
     reset() {
         this.players.player1.reset();
         this.players.player2.reset();
-        this.activePlayer = 'player1';
+        this.activePlayer = this.initialStartingPlayer || 'player1';
         this.turnNumber = 1;
         this.stadium = null;
         this.currentActionIndex = 0;

@@ -496,12 +496,29 @@ class UI {
 
         // Fallback for non-overlay discard (e.g. from hand directly)
         // Not implementing detailed hand-to-trash for now as user asked specifically for "Played Card -> Trash"
-        if (clone && sourceEl !== document.body) { // Check if valid element
+        if (clone && sourceEl !== document.body) {
+            // Generic discard fallback
+            // We want to move it to trash
+            const targetRect = discardPile ? discardPile.getBoundingClientRect() : { top: 0, left: 0, width: 0, height: 0 };
+
+            // Calculate destination
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            const endX = targetRect.left + targetRect.width / 2;
+            const endY = targetRect.top + targetRect.height / 2;
+
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+
             document.body.appendChild(clone);
-            // Simple fade out fallback
-            clone.style.transition = 'all 0.5s';
-            clone.style.opacity = '0';
-            clone.style.transform = 'scale(0.5)';
+
+            clone.style.transition = 'transform 0.5s ease-in, opacity 0.5s ease-in';
+            // Scale down as it goes to trash
+            requestAnimationFrame(() => {
+                clone.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(0.2)`;
+                clone.style.opacity = '0.5';
+            });
+
             setTimeout(() => clone.remove(), 500);
         }
     }
@@ -720,104 +737,118 @@ class UI {
     }
 
     animateSwap(playerKey, newActiveName) {
-        const isPlayer = playerKey === 'player1';
-        const prefix = isPlayer ? 'player' : 'opponent';
+        return new Promise((resolve) => {
+            const isPlayer = playerKey === 'player1';
+            const prefix = isPlayer ? 'player' : 'opponent';
 
-        const activeContainer = document.getElementById(`${prefix}-active`);
-        const benchContainer = document.getElementById(`${prefix}-bench`);
+            const activeContainer = document.getElementById(`${prefix}-active`);
+            const benchContainer = document.getElementById(`${prefix}-bench`);
 
-        const oldActiveCard = activeContainer?.querySelector('.pokemon-card');
-        const newActiveCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${newActiveName}"]`);
+            const oldActiveCard = activeContainer?.querySelector('.pokemon-card');
+            const newActiveCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${newActiveName}"]`);
 
-        if (oldActiveCard && newActiveCard) {
-            // Create clones
-            const oldRect = oldActiveCard.getBoundingClientRect();
-            const newRect = newActiveCard.getBoundingClientRect();
+            if (oldActiveCard && newActiveCard) {
+                // Get rects
+                const oldRect = oldActiveCard.getBoundingClientRect();
+                const newRect = newActiveCard.getBoundingClientRect();
 
-            const oldClone = oldActiveCard.cloneNode(true);
-            const newClone = newActiveCard.cloneNode(true);
+                // Create clones
+                const oldClone = oldActiveCard.cloneNode(true);
+                const newClone = newActiveCard.cloneNode(true);
 
-            // Setup Clones
-            [oldClone, newClone].forEach(c => {
-                c.style.position = 'fixed';
-                c.style.margin = '0';
-                c.style.zIndex = '1000';
-                c.style.transition = 'transform 0.6s ease-in-out';
-                c.classList.remove('large', 'small');
-                // We use explicit sizing, so remove class-based sizing to avoid conflicts during transition if applied
-            });
+                // Hide originals
+                oldActiveCard.style.opacity = '0';
+                newActiveCard.style.opacity = '0';
 
-            // Start Positions
-            oldClone.style.top = `${oldRect.top}px`;
-            oldClone.style.left = `${oldRect.left}px`;
-            oldClone.style.width = `${oldRect.width}px`;
-            oldClone.style.height = `${oldRect.height}px`;
-
-            newClone.style.top = `${newRect.top}px`;
-            newClone.style.left = `${newRect.left}px`;
-            newClone.style.width = `${newRect.width}px`;
-            newClone.style.height = `${newRect.height}px`;
-
-            document.body.appendChild(oldClone);
-            document.body.appendChild(newClone);
-
-            // Animate swap
-            requestAnimationFrame(() => {
-                // Old goes to New pos
-                const xDestOld = newRect.left - oldRect.left;
-                const yDestOld = newRect.top - oldRect.top;
-
-                oldClone.style.transform = `translate(${xDestOld}px, ${yDestOld}px)`;
-                oldClone.style.width = `${newRect.width}px`; // Shrink
-                oldClone.style.height = `${newRect.height}px`;
-
-                const xDestNew = oldRect.left - newRect.left;
-                const yDestNew = oldRect.top - newRect.top;
-
-                newClone.style.transform = `translate(${xDestNew}px, ${yDestNew}px)`;
-                newClone.style.width = `${oldRect.width}px`; // Grow
-                newClone.style.height = `${oldRect.height}px`;
-            });
-
-            setTimeout(() => {
-                oldClone.remove();
-                newClone.remove();
-            }, 700);
-        } else if (oldActiveCard) {
-            // Fallback: If no new active card found (e.g. empty bench or parsing issue),
-            // still animate the old active retreating to bench area
-            const oldRect = oldActiveCard.getBoundingClientRect();
-            const oldClone = oldActiveCard.cloneNode(true);
-
-            // Setup Clone
-            oldClone.style.position = 'fixed';
-            oldClone.style.margin = '0';
-            oldClone.style.zIndex = '1000';
-            oldClone.style.transition = 'transform 0.6s ease-in-out';
-            oldClone.classList.remove('large', 'small');
-
-            oldClone.style.top = `${oldRect.top}px`;
-            oldClone.style.left = `${oldRect.left}px`;
-            oldClone.style.width = `${oldRect.width}px`;
-            oldClone.style.height = `${oldRect.height}px`;
-
-            document.body.appendChild(oldClone);
-
-            // Animate to SOME bench position (first slot?)
-            const firstBench = benchContainer?.firstElementChild; // .bench-slot
-            if (firstBench) {
-                const benchRect = firstBench.getBoundingClientRect();
-                requestAnimationFrame(() => {
-                    const xDest = benchRect.left - oldRect.left;
-                    const yDest = benchRect.top - oldRect.top;
-                    oldClone.style.transform = `translate(${xDest}px, ${yDest}px) scale(0.6)`;
+                // Setup Clones
+                [oldClone, newClone].forEach(c => {
+                    c.style.position = 'fixed';
+                    c.style.margin = '0';
+                    c.style.zIndex = '1000';
+                    c.style.transition = 'transform 0.6s ease-in-out, width 0.6s ease-in-out, height 0.6s ease-in-out';
+                    c.classList.remove('large', 'small');
                 });
-            }
 
-            setTimeout(() => {
-                oldClone.remove();
-            }, 700);
-        }
+                // Set initial positions and sizes explicitly
+                oldClone.style.top = `${oldRect.top}px`;
+                oldClone.style.left = `${oldRect.left}px`;
+                oldClone.style.width = `${oldRect.width}px`;
+                oldClone.style.height = `${oldRect.height}px`;
+
+                newClone.style.top = `${newRect.top}px`;
+                newClone.style.left = `${newRect.left}px`;
+                newClone.style.width = `${newRect.width}px`;
+                newClone.style.height = `${newRect.height}px`;
+
+                document.body.appendChild(oldClone);
+                document.body.appendChild(newClone);
+
+                // Animate
+                requestAnimationFrame(() => {
+                    // Force reflow
+                    void oldClone.offsetWidth;
+                    void newClone.offsetWidth;
+
+                    // Calculate translation
+                    // Old -> New Position
+                    const xDestOld = newRect.left - oldRect.left;
+                    const yDestOld = newRect.top - oldRect.top;
+
+                    // New -> Old Position
+                    const xDestNew = oldRect.left - newRect.left;
+                    const yDestNew = oldRect.top - newRect.top;
+
+                    // Apply Transform & Size Change
+                    oldClone.style.transform = `translate(${xDestOld}px, ${yDestOld}px)`;
+                    oldClone.style.width = `${newRect.width}px`;
+                    oldClone.style.height = `${newRect.height}px`;
+
+                    newClone.style.transform = `translate(${xDestNew}px, ${yDestNew}px)`;
+                    newClone.style.width = `${oldRect.width}px`;
+                    newClone.style.height = `${oldRect.height}px`;
+                });
+
+                setTimeout(() => {
+                    oldClone.remove();
+                    newClone.remove();
+                    // Don't restore opacity here because the state update (render) will happen immediately after resolve
+                    resolve();
+                }, 700); // 600ms transition + buffer
+
+            } else if (oldActiveCard) {
+                // Fallback: Just animate old active retreating if new one not found (rare)
+                const oldRect = oldActiveCard.getBoundingClientRect();
+                const oldClone = oldActiveCard.cloneNode(true);
+
+                oldActiveCard.style.opacity = '0';
+
+                oldClone.style.position = 'fixed';
+                oldClone.style.zIndex = '1000';
+                oldClone.style.transition = 'transform 0.6s ease-in-out, opacity 0.6s';
+                oldClone.style.top = `${oldRect.top}px`;
+                oldClone.style.left = `${oldRect.left}px`;
+                oldClone.style.width = `${oldRect.width}px`;
+                oldClone.style.height = `${oldRect.height}px`;
+
+                document.body.appendChild(oldClone);
+
+                requestAnimationFrame(() => {
+                    // Move to specific position or just fade out/shrink? 
+                    // Let's move towards bench area roughly
+                    const benchRect = benchContainer ? benchContainer.getBoundingClientRect() : { top: oldRect.top + 100, left: oldRect.left };
+
+                    oldClone.style.transform = `translate(${benchRect.left - oldRect.left}px, ${benchRect.top - oldRect.top}px) scale(0.5)`;
+                    oldClone.style.opacity = '0';
+                });
+
+                setTimeout(() => {
+                    oldClone.remove();
+                    resolve();
+                }, 700);
+            } else {
+                resolve(); // Nothing to animate
+            }
+        });
     }
 
     showTurnIndicator(turnNumber, playerName) {
@@ -876,6 +907,57 @@ class UI {
         // "Psychic -> Purple Eye" -> 👁️ is ... eye colored. 
         // Let's combine: Icon + Background Color class.
         return `<span class="energy-icon type-${type}">${symbol}</span>`;
+    }
+
+    highlightPokemon(playerKey, pokemonName) {
+        const isPlayer = playerKey === 'player1';
+        const prefix = isPlayer ? 'player' : 'opponent';
+
+        let targetCard = null;
+
+        // Check active
+        const activeContainer = document.getElementById(`${prefix}-active`);
+        if (activeContainer) {
+            const card = activeContainer.querySelector(`.pokemon-card[data-card-name="${pokemonName}"]`);
+            if (card) targetCard = card;
+            else if (activeContainer.querySelector('.pokemon-card')) {
+                // Fallback to active card if standard logic fails (commonly correct for attacks)
+                const card = activeContainer.querySelector('.pokemon-card');
+                if (card) targetCard = card;
+            }
+        }
+
+        // Check bench if not found
+        if (!targetCard) {
+            const benchContainer = document.getElementById(`${prefix}-bench`);
+            if (benchContainer) {
+                const card = benchContainer.querySelector(`.pokemon-card[data-card-name="${pokemonName}"]`);
+                if (card) targetCard = card;
+            }
+        }
+
+        if (targetCard) {
+            targetCard.classList.remove('action-highlight');
+            void targetCard.offsetWidth; // Trigger reflow
+            targetCard.classList.add('action-highlight');
+        }
+    }
+
+    announceMove(moveName, playerKey) {
+        const overlay = document.createElement('div');
+        overlay.className = 'move-announcement-overlay';
+
+        const text = document.createElement('div');
+        text.className = 'move-announcement-text';
+        text.textContent = moveName;
+
+        overlay.appendChild(text);
+        document.body.appendChild(overlay);
+
+        // Remove after animation (2.0s)
+        setTimeout(() => {
+            overlay.remove();
+        }, 2000);
     }
 }
 

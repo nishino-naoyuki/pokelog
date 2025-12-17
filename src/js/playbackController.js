@@ -80,9 +80,60 @@ class PlaybackController {
         // Check if THIS action involves movement/swap, so we can animate existing elements
 
         if (action.type === 'switch_active' || action.type === 'retreat') {
-            this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
+            await this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
         } else if (action.type === 'play_pokemon_active') {
             this.ui.animateActiveMove(isPlayer ? 'player1' : 'player2');
+        } else if (action.type === 'discard') {
+            // Animate discard logic
+            if (isPlayer && action.data.cards) {
+                // Attempt to animate from Hand
+                // Since we don't track specific DOM elements per card in hand intimately here easily,
+                // we will animate the entire hand container or just spawn a generic card from it.
+                // Better: Use showTrashEffect on the hand container?
+                const handEl = document.getElementById('player-hand');
+                if (handEl) {
+                    // Just grab the last card or random card visually as a proxy?
+                    // Or just animate from center of hand.
+                    const cardEl = handEl.lastElementChild || handEl;
+                    this.ui.showTrashEffect(cardEl, 'discard');
+                }
+            }
+        } else if (action.type === 'discard_from_pokemon') {
+            // Animate from specific pokemon
+            const prefix = isPlayer ? 'player' : 'opponent';
+            const activeContainer = document.getElementById(`${prefix}-active`);
+            const benchContainer = document.getElementById(`${prefix}-bench`);
+
+            let targetCard = activeContainer?.querySelector(`.pokemon-card[data-card-name="${action.data.pokemonName}"]`);
+
+            if (!targetCard && activeContainer) {
+                // Check if active matches generically (handling potential name mismatches)
+                // But wait, name is specific. 
+                // If not found in active, query bench.
+                targetCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${action.data.pokemonName}"]`);
+            }
+            if (!targetCard && activeContainer && activeContainer.querySelector('.pokemon-card') && action.data.pokemonName === this.gameState.players[isPlayer ? 'player1' : 'player2'].activePokemon?.card?.name) {
+                // Fallback to active if name implies it
+                targetCard = activeContainer.querySelector('.pokemon-card');
+            }
+
+            if (targetCard) {
+                // Animate from that card to trash
+                this.ui.showTrashEffect(targetCard, 'discard');
+            }
+        } else if (action.type === 'discard') {
+            // Animate discard
+            // We need to know which cards caused this. 
+            // Ideally we find the hand element for the card.
+            // But action.data.cards has names.
+            // If player, we can find in DOM. If opponent, maybe valid only if known.
+            if (isPlayer && action.data.cards) {
+                // Trigger for first card or all?
+                // Let's toggle simpler animation "Hand area -> Trash"
+                // Or just highlight trash?
+                const trashEl = document.getElementById('player-discard');
+                this.ui.showTrashEffect(document.getElementById('player-hand'), 'discard');
+            }
         }
 
         // --- Execute Action & Render ---
@@ -143,6 +194,21 @@ class PlaybackController {
 
         // Show effect for attack
         if (action.type === 'use_attack') {
+            // New Visual Effects
+            // 1. Highlight the user
+            this.ui.highlightPokemon(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
+
+            // 2. Announce the move/ability name
+            // Use attackName if available, else standard text?
+            // "used Startler" -> attackName="Startler"
+            if (action.data.attackName) {
+                this.ui.announceMove(action.data.attackName, isPlayer ? 'player1' : 'player2');
+
+                // Wait for announcement impact (e.g. 1s) before damage numbers appear?
+                // StepForward is async now.
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
             const sourceId = isPlayer ? 'player-active' : 'opponent-active';
             const targetId = isPlayer ? 'opponent-active' : 'player-active';
 

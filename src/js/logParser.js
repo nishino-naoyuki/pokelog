@@ -17,12 +17,14 @@ class LogParser {
             // Reset player mapping
             this.player1Name = null;
             this.player2Name = null;
+            this.startingPlayerName = null;
 
             const result = {
                 success: true,
                 data: {
                     player1Name: null,
                     player2Name: null,
+                    startingPlayer: null,
                     setup: {},
                     actions: []
                 }
@@ -47,6 +49,11 @@ class LogParser {
 
             // Extract player names from actions or setup
             this.extractPlayerNames(result.data);
+
+            // Set starting player if found
+            if (this.startingPlayerName) {
+                result.data.startingPlayer = this.getPlayerKey(this.startingPlayerName);
+            }
 
             return result;
 
@@ -130,6 +137,12 @@ class LogParser {
 
         const turnNumber = parseInt(turnMatch[1]);
         const playerName = turnMatch[2];
+
+        // Capture starting player from Turn 1
+        if (turnNumber === 1 && !this.startingPlayerName) {
+            this.startingPlayerName = playerName;
+        }
+
         this.currentLine++;
 
         // Parse actions until next turn or end
@@ -492,6 +505,51 @@ class LogParser {
                 return new Action('put_damage_counter', this.getPlayerKey(match[1]), {
                     target: match[3],
                     count: count
+                }, timestamp);
+            }
+        }
+
+        // Discard card(s)
+        if (cleanLine.includes('discarded')) {
+            const match = cleanLine.match(/^(.+?) discarded (.+?)\.?$/);
+            if (match) {
+                const playerName = match[1];
+                let cards = [];
+
+                // Check if it says "X cards" -> look ahead for bullets (similar to draw)
+                if (match[2].match(/\d+ cards/)) {
+                    // Look ahead logic
+                    let tempLineIdx = this.currentLine + 1;
+                    if (tempLineIdx < this.lines.length) {
+                        const nextLine = this.lines[tempLineIdx].trim();
+                        if (nextLine.startsWith('•')) {
+                            const content = nextLine.replace(/^[•\s]+/, '').trim();
+                            cards = content.split(',').map(c => c.trim());
+                            this.currentLine++; // Consume next line
+                        }
+                    }
+                } else {
+                    // Single card or comma separated inline?
+                    // Typically "discarded Energy" or "discarded CardA, CardB"?
+                    // Regex capture group 2 is the content.
+                    cards = match[2].split(',').map(c => c.trim());
+                }
+
+                if (cards.length > 0) {
+                    return new Action('discard', this.getPlayerKey(playerName), {
+                        cards: cards
+                    }, timestamp);
+                }
+            }
+        }
+
+        // Discard from Pokemon (e.g. Tools, Energy)
+        if (cleanLine.includes('discarded from')) {
+            const match = cleanLine.match(/^(.+?) was discarded from (.+?)'s (.+?)\.?$/);
+            if (match) {
+                return new Action('discard_from_pokemon', this.getPlayerKey(match[2]), {
+                    cardName: match[1],
+                    pokemonName: match[3]
                 }, timestamp);
             }
         }
