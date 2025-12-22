@@ -225,9 +225,12 @@ class GameState {
 
             // Swap
             player.activePokemon = newActive;
+            player.activePokemon.setActive(true); // New method
+
             player.bench.splice(benchIndex, 1);
 
             if (oldActive) {
+                oldActive.setActive(false); // New method
                 player.bench.push(oldActive);
             }
 
@@ -235,6 +238,7 @@ class GameState {
         } else {
             // Pokemon not found on bench, might be new active
             player.activePokemon = new Pokemon(new Card(data.pokemonName, 'pokemon'));
+            player.activePokemon.setActive(true); // New method
             console.log(`${player.name} set ${data.pokemonName} as Active (new)`);
         }
     }
@@ -297,7 +301,7 @@ class GameState {
         const targetPokemon = this.findPokemonByTarget(player, data.target);
 
         if (targetPokemon) {
-            targetPokemon.energies.push(new Card(data.energyType, 'energy'));
+            targetPokemon.attachEnergy(new Card(data.energyType, 'energy'));
         }
 
         const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
@@ -310,7 +314,7 @@ class GameState {
         const targetPokemon = this.findPokemonByTarget(player, data.target);
 
         if (targetPokemon) {
-            targetPokemon.tools.push(new Card(data.cardName, 'tool'));
+            targetPokemon.attachTool(new Card(data.cardName, 'tool'));
         }
 
         const cardIndex = player.hand.findIndex(c => c.name === data.cardName);
@@ -377,7 +381,7 @@ class GameState {
             }
 
             if (targetPokemon) {
-                targetPokemon.damage += data.damage;
+                targetPokemon.takeDamage(data.damage);
                 console.log(`Applied ${data.damage} damage to ${targetPokemon.card.name} (Current Damage: ${targetPokemon.damage})`);
             } else {
                 console.warn(`Could not find target for attack damage: ${targetName}`);
@@ -388,7 +392,7 @@ class GameState {
     handleDamage(player, data) {
         const pokemon = data.target === 'active' ? player.activePokemon : player.bench[data.benchIndex];
         if (pokemon) {
-            pokemon.damage += data.amount;
+            pokemon.takeDamage(data.amount);
         }
     }
 
@@ -492,7 +496,7 @@ class GameState {
         }
 
         if (pokemon) {
-            pokemon.damage += (data.count * 10);
+            pokemon.takeDamage(data.count * 10);
             console.log(`Put ${data.count} counters on ${targetOwner.name}'s ${pokemon.card.name} (Total: ${pokemon.damage})`);
         } else {
             console.warn(`Could not find pokemon for put_damage_counter: ${data.target}`);
@@ -521,8 +525,8 @@ class GameState {
 
         const amount = data.count * 10;
 
-        if (fromPokemon) fromPokemon.damage = Math.max(0, fromPokemon.damage - amount);
-        if (toPokemon) toPokemon.damage += amount;
+        if (fromPokemon) fromPokemon.heal(amount);
+        if (toPokemon) toPokemon.takeDamage(amount);
 
         console.log(`Moved ${data.count} counters from ${from.name} to ${to.name}`);
     }
@@ -530,16 +534,14 @@ class GameState {
     handleSpecialConditionDamage(player, data) {
         const pokemon = this.findPokemon(player, data.pokemonName);
         if (pokemon) {
-            pokemon.damage += (data.count * 10);
+            pokemon.takeDamage(data.count * 10);
         }
     }
 
     handleSpecialCondition(player, data) {
         const pokemon = this.findPokemon(player, data.pokemonName);
         if (pokemon) {
-            if (!pokemon.specialConditions.includes(data.condition)) {
-                pokemon.specialConditions.push(data.condition);
-            }
+            pokemon.addSpecialCondition(data.condition);
         }
     }
 
@@ -547,9 +549,7 @@ class GameState {
         const pokemon = this.findPokemon(player, data.from);
         if (pokemon) {
             console.log(`Evolved ${player.name}'s ${data.from} to ${data.to}`);
-            pokemon.card.name = data.to;
-            pokemon.evolutionStage += 1;
-            pokemon.specialConditions = [];
+            pokemon.evolve(data.to);
 
             // Consume card from hand
             const cardIndex = player.hand.findIndex(c => c.name === data.to);
@@ -608,6 +608,7 @@ class PlayerState {
     initializeFromSetup(setupData) {
         if (setupData.activePokemon) {
             this.activePokemon = new Pokemon(new Card(setupData.activePokemon, 'pokemon'));
+            this.activePokemon.setActive(true);
         }
         if (setupData.bench) {
             this.bench = setupData.bench.map(name => new Pokemon(new Card(name, 'pokemon')));
@@ -621,18 +622,71 @@ class PlayerState {
 class Pokemon {
     constructor(card) {
         this.card = card;
-        this.hp = 100; // Default, should be loaded from card data
-        this.maxHp = 100;
+        this.hp = 100; // Deprecated but kept for UI compatibility
+        this.maxHp = 100; // Deprecated but kept for UI compatibility
         this.damage = 0;
         this.energies = [];
         this.tools = [];
         this.specialConditions = [];
         this.evolutionStage = 0;
         this.isKnockedOut = false;
+        this.isActive = false; // New property
+    }
+
+    takeDamage(amount) {
+        this.damage += amount;
+    }
+
+    heal(amount) {
+        this.damage = Math.max(0, this.damage - amount);
+    }
+
+    attachEnergy(card) {
+        this.energies.push(card);
+    }
+
+    attachTool(card) {
+        this.tools.push(card);
+    }
+
+    discardAttachedCard(cardName) {
+        // Find in energies
+        const eIndex = this.energies.findIndex(c => c.name === cardName);
+        if (eIndex !== -1) {
+            return this.energies.splice(eIndex, 1)[0];
+        }
+
+        // Find in tools
+        const tIndex = this.tools.findIndex(c => c.name === cardName);
+        if (tIndex !== -1) {
+            return this.tools.splice(tIndex, 1)[0];
+        }
+
+        return null;
+    }
+
+    evolve(newCardName) {
+        this.card = new Card(newCardName, 'pokemon');
+        this.evolutionStage++;
+        this.specialConditions = []; // Evolution clears special conditions
+    }
+
+    addSpecialCondition(condition) {
+        if (!this.specialConditions.includes(condition)) {
+            this.specialConditions.push(condition);
+        }
+    }
+
+    clearConditions() {
+        this.specialConditions = [];
     }
 
     knockout() {
         this.isKnockedOut = true;
+    }
+
+    setActive(isActive) {
+        this.isActive = isActive;
     }
 
     getRemainingHp() {
