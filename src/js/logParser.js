@@ -314,7 +314,7 @@ class LogParser {
 
             const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
             if (match) {
-
+                console.log("drew sequence match[2]=" + match[2]);
                 if (match[2] === 'a card' || match[2].includes(' cards')) {
 
                     //この場合、次の行に取得したカードが記載されている
@@ -328,13 +328,14 @@ class LogParser {
 
                             const content = nextLine.replace(/^[•\s]+/, '').trim();
                             const cards = content.split(',').map(c => c.trim());
+                            console.log("draw cards" + cards)
                             // 次の行を消費済みとしてマーク
                             this.currentLine++;
                             return new Action('draw', this.getPlayerKey(match[1]), { cards: cards }, timestamp);
                         } else {
-
                             // bullet pointがない場合は、match[2]から数字を抽出してカウントベースのdrawを返す
                             const countMatch = match[2].match(/(\d+) cards/);
+                            console.log("countMatch=" + countMatch + " match=" + match)
                             if (countMatch) {
 
                                 return new Action('draw', this.getPlayerKey(match[1]), { count: parseInt(countMatch[1]) }, timestamp);
@@ -351,6 +352,7 @@ class LogParser {
                     if (cardName.endsWith('.')) {
                         cardName = cardName.slice(0, -1);
                     }
+                    console.log("drew cardname=" + cardName);
                     return new Action('draw', this.getPlayerKey(match[1]), { cards: [cardName] }, timestamp);
                 }
             }

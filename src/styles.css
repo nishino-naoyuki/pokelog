@@ -9,7 +9,7 @@
     }
 
     50% {
-        transform: scale(1.2) translateY(-20px);
+        transform: scale(1.2) translateY(20px);
         box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
     }
 
@@ -77,15 +77,15 @@
     }
 
     25% {
-        transform: translateX(-5px) rotate(-5deg);
+        transform: translateX(-50px) rotate(-5deg);
     }
 
     50% {
-        transform: translateX(5px) rotate(5deg);
+        transform: translateX(50px) rotate(5deg);
     }
 
     75% {
-        transform: translateX(-5px) rotate(-5deg);
+        transform: translateX(-50px) rotate(-5deg);
     }
 
     100% {
@@ -100,7 +100,7 @@
     }
 
     50% {
-        transform: translateX(15px) translateY(-5px);
+        transform: translateX(30px) translateY(-5px);
         z-index: 10;
     }
 

@@ -144,6 +144,7 @@ class PlaybackController {
         // --- Post-render Animations (effects that need updated DOM or simple overlays) ---
 
         if (action.type === 'draw') {
+            console.log("action drew action.data=" + action.data);
             if (action.data.count) {
                 this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.count);
             } else if (action.data.cards) {
