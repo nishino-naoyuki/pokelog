@@ -2,10 +2,11 @@
 // Manages playback of actions (auto-play, step navigation)
 
 class PlaybackController {
-    constructor(gameState, ui, cardMapper) {
+    constructor(gameState, ui, cardMapper, soundManager) {
         this.gameState = gameState;
         this.ui = ui;
         this.cardMapper = cardMapper;
+        this.soundManager = soundManager;
         this.isPlaying = false;
         this.playbackSpeed = 1.0;
         this.playbackTimer = null;
@@ -120,6 +121,7 @@ class PlaybackController {
         } else if (action.type === 'evolve') {
             // 進化: 状態更新前にアニメーション実行
             console.log(`[Playback] Evolution - From: ${action.data.from}, To: ${action.data.to}`);
+            this.soundManager.playEvolve(); // 効果音再生
             await this.ui.animateEvolve(isPlayer ? 'player1' : 'player2', action.data.from, action.data.to);
         }
 
@@ -134,13 +136,16 @@ class PlaybackController {
         if (action.type === 'draw') {
             console.log("action drew action.data=" + action.data);
             if (action.data.count) {
+                this.soundManager.playDraw(); // 効果音再生
                 this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.count);
             } else if (action.data.cards) {
+                this.soundManager.playDraw(); // 効果音再生
                 this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.cards);
             }
         }
 
         if (action.type === 'shuffle_deck') {
+            this.soundManager.playShuffle(); // 効果音再生
             this.ui.animateShuffle(isPlayer ? 'player1' : 'player2');
         }
 
@@ -164,6 +169,7 @@ class PlaybackController {
         }
 
         if (action.type === 'play_card') {
+            this.soundManager.playPlayed(); // 効果音再生
             this.ui.showPlayedCard(action.data.cardName, this.cardMapper);
 
             // Trash effect
@@ -177,6 +183,7 @@ class PlaybackController {
         if (action.type === 'knockout') {
             // For knockout, the player field in action is the one who lost the pokemon
             // ... (keep existing comment/logic if any, currently empty in view)
+            this.soundManager.playKnockout(); // 効果音再生
         }
 
         // Show effect for attack
@@ -209,6 +216,10 @@ class PlaybackController {
             const targetEl = document.getElementById(targetId)?.querySelector('.pokemon-card');
 
             if (sourceEl && targetEl) {
+                if (action.data.damage && action.data.damage > 0) {
+                    this.soundManager.playDamage(); // ダメージ効果音再生
+                }
+
                 const type = (action.data.damage || 0) >= 100 ? 'strong' : 'normal';
                 if (this.ui.showAttackEffect) {
                     this.ui.showAttackEffect(sourceEl, targetEl, type);

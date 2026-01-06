@@ -4,13 +4,16 @@ import { GameState } from './gameState.js';
 import { CardMapper } from './cardMapper.js';
 import { UI } from './ui.js';
 import { PlaybackController } from './playbackController.js';
+import { SoundManager } from './soundManager.js';
 
 class App {
     constructor() {
         this.parser = new LogParser();
         this.gameState = null;
         this.cardMapper = new CardMapper();
+        this.cardMapper = new CardMapper();
         this.ui = new UI(this.cardMapper);
+        this.soundManager = new SoundManager();
         this.playbackController = null;
 
         this.initEventListeners();
@@ -110,7 +113,8 @@ class App {
             this.playbackController = new PlaybackController(
                 this.gameState,
                 this.ui,
-                this.cardMapper
+                this.cardMapper,
+                this.soundManager
             );
 
             // Render initial state
