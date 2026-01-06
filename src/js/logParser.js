@@ -309,10 +309,10 @@ class LogParser {
             }
         }
 
-        // Draw card
-        if (cleanLine.match(/drew (a card|[\w\s]+)\.?$/)) {
+        // Draw card - 厳密なキーワードチェックを追加
+        if (cleanLine.includes('drew')) {
 
-            const match = cleanLine.match(/^(.+?) drew (.+)\.?$/);
+            const match = cleanLine.match(/^(.+?) drew (.+?)\.?$/);
             if (match) {
                 console.log("drew sequence match[2]=" + match[2]);
                 if (match[2] === 'a card' || match[2].includes(' cards')) {

@@ -50,7 +50,14 @@ class PlaybackController {
             return;
         }
 
-        const action = this.gameState.actions[this.gameState.currentActionIndex];
+        // インデックスをインクリメント
+        this.gameState.currentActionIndex++;
+
+        // 現在のアクションを取得（インクリメント後）
+        const action = this.gameState.getCurrentAction();
+        const isPlayer = action.player === 'player1';
+
+        console.log(`[Playback] Step Forward - Index: ${this.gameState.currentActionIndex}, Type: ${action.type}, Player: ${action.player}`);
 
         // --- Turn Indicator Logic ---
         // Check if turn/player changed from last state
@@ -61,7 +68,6 @@ class PlaybackController {
             this.lastTurnNumber = this.gameState.turnNumber;
             this.lastActivePlayer = this.gameState.activePlayer;
         }
-        const isPlayer = action.player === 'player1';
 
         // Check next action for pre-execution        
         // --- Pre-render Animations (trigger before DOM update for smooth transitions) ---
@@ -69,11 +75,6 @@ class PlaybackController {
         // Knockout: show effect on dying pokemon before it's removed
         const nextAction = this.gameState.actions[this.gameState.currentActionIndex + 1];
         if (nextAction && nextAction.type === 'knockout') {
-            // Logic: Check if NEXT action is knockout, execute its visual now
-            // But wait, the current action is 'action'.
-            // The original code was peeking ahead?
-            // Actually, if the CURRENT action is causing a knockout (like damage), the knockout action follows.
-            // We need to look ahead for knockout action.
             this.ui.showKnockoutEffect(nextAction.player, nextAction.data.pokemonName);
         }
 
@@ -83,21 +84,7 @@ class PlaybackController {
             await this.ui.animateSwap(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
         } else if (action.type === 'play_pokemon_active') {
             this.ui.animateActiveMove(isPlayer ? 'player1' : 'player2');
-        } else if (action.type === 'discard') {
-            // Animate discard logic
-            if (isPlayer && action.data.cards) {
-                // Attempt to animate from Hand
-                // Since we don't track specific DOM elements per card in hand intimately here easily,
-                // we will animate the entire hand container or just spawn a generic card from it.
-                // Better: Use showTrashEffect on the hand container?
-                const handEl = document.getElementById('player-hand');
-                if (handEl) {
-                    // Just grab the last card or random card visually as a proxy?
-                    // Or just animate from center of hand.
-                    const cardEl = handEl.lastElementChild || handEl;
-                    this.ui.showTrashEffect(cardEl, 'discard');
-                }
-            }
+
         } else if (action.type === 'discard_from_pokemon') {
             // Animate from specific pokemon
             const prefix = isPlayer ? 'player' : 'opponent';
@@ -107,9 +94,6 @@ class PlaybackController {
             let targetCard = activeContainer?.querySelector(`.pokemon-card[data-card-name="${action.data.pokemonName}"]`);
 
             if (!targetCard && activeContainer) {
-                // Check if active matches generically (handling potential name mismatches)
-                // But wait, name is specific. 
-                // If not found in active, query bench.
                 targetCard = benchContainer?.querySelector(`.pokemon-card[data-card-name="${action.data.pokemonName}"]`);
             }
             if (!targetCard && activeContainer && activeContainer.querySelector('.pokemon-card') && action.data.pokemonName === this.gameState.players[isPlayer ? 'player1' : 'player2'].activePokemon?.card?.name) {
@@ -123,21 +107,25 @@ class PlaybackController {
             }
         } else if (action.type === 'discard') {
             // Animate discard
-            // We need to know which cards caused this. 
-            // Ideally we find the hand element for the card.
-            // But action.data.cards has names.
-            // If player, we can find in DOM. If opponent, maybe valid only if known.
-            if (isPlayer && action.data.cards) {
-                // Trigger for first card or all?
-                // Let's toggle simpler animation "Hand area -> Trash"
-                // Or just highlight trash?
-                const trashEl = document.getElementById('player-discard');
+            if (isPlayer && action.data.cards && action.data.cards.length > 0) {
+                action.data.cards.forEach((cardName, index) => {
+                    setTimeout(() => {
+                        this.ui.animateDiscard(isPlayer ? 'player1' : 'player2', cardName);
+                    }, index * 200); // Stagger by 200ms
+                });
+            } else if (isPlayer) {
+                // Fallback for generic discard logic if needed
                 this.ui.showTrashEffect(document.getElementById('player-hand'), 'discard');
             }
+        } else if (action.type === 'evolve') {
+            // 進化: 状態更新前にアニメーション実行
+            console.log(`[Playback] Evolution - From: ${action.data.from}, To: ${action.data.to}`);
+            await this.ui.animateEvolve(isPlayer ? 'player1' : 'player2', action.data.from, action.data.to);
         }
 
         // --- Execute Action & Render ---
-        this.gameState.executeNextAction();
+        // applyAction()を直接呼び出し（executeNextAction()は使わない）
+        this.gameState.applyAction(action);
         await this.renderCurrentState();
         this.addActionLog(action);
 
@@ -148,7 +136,7 @@ class PlaybackController {
             if (action.data.count) {
                 this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.count);
             } else if (action.data.cards) {
-                this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.cards.length);
+                this.ui.animateDraw(isPlayer ? 'player1' : 'player2', action.data.cards);
             }
         }
 
@@ -157,12 +145,22 @@ class PlaybackController {
         }
 
         if (action.type === 'attach_energy') {
-            // Target is in action.data.target not pokemonName
-            this.ui.animateEnergyAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
+            // Use generic attach animation for energy too if desired, or keep specific if later needed
+            this.ui.animateAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
         }
 
         if (action.type === 'attach_tool') {
-            this.ui.animateToolAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
+            this.ui.animateAttach(isPlayer ? 'player1' : 'player2', action.data.cardName, action.data.target);
+        }
+
+        if (action.type === 'play_pokemon_bench') {
+            this.ui.animatePlayToBench(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
+        }
+
+        // 進化は既にPre-renderセクションで処理済み
+
+        if (action.type === 'play_stadium') {
+            this.ui.animateStadium(isPlayer ? 'player1' : 'player2', action.data.cardName);
         }
 
         if (action.type === 'play_card') {
@@ -178,23 +176,13 @@ class PlaybackController {
 
         if (action.type === 'knockout') {
             // For knockout, the player field in action is the one who lost the pokemon
-            const isVictimPlayer1 = action.player === 'player1';
-            const victimId = isVictimPlayer1 ? 'player-active' : 'opponent-active';
-            // Logic to find exact pokemon element might be tricky if it's already removed from state?
-            // But valid DOM element might still exist if we haven't re-rendered? 
-            // We JUST called renderCurrentState(), so the pokemon is GONE from the DOM!
-            // We need to trigger effect BEFORE rendering state? Or handle it differently.
-            // If we render state, the victim is gone.
-
-            // Actually, for knockout, we should probably show effect BEFORE rendering the state update that removes it.
-            // But stepForward is standard: execute -> render.
-            // Maybe we can rely on ShowTrashEffect spawning a clone of the element?
-            // But the element is gone from DOM.
-            // We might need to capture the element before rendering.
+            // ... (keep existing comment/logic if any, currently empty in view)
         }
 
         // Show effect for attack
         if (action.type === 'use_attack') {
+            console.log(`[Playback] use_attack action detected: ${action.data.pokemonName} used ${action.data.attackName}`);
+
             // New Visual Effects
             // 1. Highlight the user
             this.ui.highlightPokemon(isPlayer ? 'player1' : 'player2', action.data.pokemonName);
@@ -203,11 +191,15 @@ class PlaybackController {
             // Use attackName if available, else standard text?
             // "used Startler" -> attackName="Startler"
             if (action.data.attackName) {
-                this.ui.announceMove(action.data.attackName, isPlayer ? 'player1' : 'player2');
+                console.log(`[Playback] Calling animateUse for: ${action.data.attackName}`);
+                // If it's an Ability (often indicated by specific card usage context, but here generic attack log)
+                // logParser distinguishes 'used [Ability]'? 
+                // For now treat all attacks/abilities same for visual announcement
+                this.ui.animateUse(isPlayer ? 'player1' : 'player2', action.data.pokemonName, action.data.attackName);
 
-                // Wait for announcement impact (e.g. 1s) before damage numbers appear?
-                // StepForward is async now.
                 await new Promise(r => setTimeout(r, 1000));
+            } else {
+                console.warn(`[Playback] No attackName found for use_attack action`);
             }
 
             const sourceId = isPlayer ? 'player-active' : 'opponent-active';

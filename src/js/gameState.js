@@ -548,8 +548,9 @@ class GameState {
     handleEvolve(player, data) {
         const pokemon = this.findPokemon(player, data.from);
         if (pokemon) {
-            console.log(`Evolved ${player.name}'s ${data.from} to ${data.to}`);
+            console.log(`[GameState Evolution] Before: ${pokemon.card.name} (Player: ${player.name})`);
             pokemon.evolve(data.to);
+            console.log(`[GameState Evolution] After: ${pokemon.card.name} (Player: ${player.name})`);
 
             // Consume card from hand
             const cardIndex = player.hand.findIndex(c => c.name === data.to);
@@ -557,7 +558,7 @@ class GameState {
                 player.hand.splice(cardIndex, 1);
             }
         } else {
-            console.warn(`Could not find pokemon to evolve: ${data.from} -> ${data.to}`);
+            console.warn(`[GameState Evolution] Could not find pokemon to evolve: ${data.from} -> ${data.to} (Player: ${player.name})`);
         }
     }
 

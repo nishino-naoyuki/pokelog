@@ -4,8 +4,9 @@
 import { MessageTranslator } from './messageTranslator.js';
 
 class UI {
-    constructor() {
+    constructor(cardMapper) {
         this.translator = new MessageTranslator();
+        this.cardMapper = cardMapper;
         this.logContentEl = document.getElementById('log-content');
         // Assuming these elements exist or will be initialized elsewhere if needed by the new renderGameState logic
         this.turnNumberEl = document.getElementById('turn-number'); // Added based on snippet
@@ -414,10 +415,12 @@ class UI {
     }
 
     showTrashEffect(sourceEl, type = 'discard') {
-        if (!sourceEl) return;
+        const overlay = document.querySelector('.played-card-overlay-js');
+        const sourceCheck = sourceEl || overlay;
+        if (!sourceCheck) return;
 
-        const rect = sourceEl.getBoundingClientRect();
-        const clone = sourceEl.cloneNode(true);
+        const rect = sourceEl ? sourceEl.getBoundingClientRect() : (overlay ? overlay.querySelector('img').getBoundingClientRect() : { top: 0, left: 0, width: 0, height: 0 });
+        const clone = sourceEl ? sourceEl.cloneNode(true) : overlay.querySelector('img').cloneNode(true);
 
         // Style the clone for animation start
         clone.style.cssText = `
@@ -523,7 +526,7 @@ class UI {
         }
     }
 
-    animateDraw(playerKey, count) {
+    animateDraw(playerKey, data) {
         const isPlayer = playerKey === 'player1'; // Assuming player1 is Self
         const deckEl = isPlayer
             ? document.querySelector('.self-area .deck-pile')
@@ -538,7 +541,23 @@ class UI {
         const deckRect = deckEl.getBoundingClientRect();
         const handRect = handEl.getBoundingClientRect();
 
+        // Check if data is array (specific cards) or number
+        let count = 0;
+        let cardNames = [];
+
+        if (Array.isArray(data)) {
+            count = data.length;
+            cardNames = data;
+        } else {
+            count = data;
+        }
+
         for (let i = 0; i < count; i++) {
+            const cardName = cardNames[i];
+            const isNamedCard = cardName && cardName !== 'Unknown Card';
+
+            // Don't show individual messages - we'll show all at once after loop
+
             const card = document.createElement('div');
             card.className = 'animate-fly-draw';
 
@@ -546,9 +565,27 @@ class UI {
             card.style.top = `${deckRect.top}px`;
             card.style.left = `${deckRect.left}px`;
 
+            // If named card, show the image
+            if (isNamedCard) {
+                const img = document.createElement('img');
+                img.className = 'card-image';
+
+                // Fetch image async
+                this.cardMapper.getCardImage(cardName).then(src => {
+                    img.src = src;
+                });
+                card.appendChild(img);
+
+                // Make it look like a real card
+                card.classList.add('pokemon-card', 'small');
+                card.style.position = 'fixed'; // Override class defaults if needed
+                card.style.margin = '0';
+                card.style.zIndex = '3000'; // Make sure it's on top
+            }
+
             // Calculate midpoint (arc effect) and endpoint
             // Randomize slightly for multiple cards
-            const offset = (i - count / 2) * 20;
+            const offset = (i - count / 2) * 120; // Increased offset for better visibility
             const endX = (handRect.left + handRect.width / 2 - deckRect.left) + offset;
             const endY = (handRect.top + handRect.height / 2 - deckRect.top);
 
@@ -561,13 +598,327 @@ class UI {
             card.style.setProperty('--end-y', `${endY}px`);
 
             // Stagger animations
-            card.style.animationDelay = `${i * 100}ms`;
+            card.style.animationDelay = `${i * 150}ms`;
 
             document.body.appendChild(card);
 
             setTimeout(() => {
                 card.remove();
-            }, 1000 + (i * 100));
+            }, 1200 + (i * 150));
+        }
+
+        // Show all cards in center message after animation starts
+        if (cardNames.length > 0) {
+            const namedCards = cardNames.filter(c => c && c !== 'Unknown Card');
+            if (namedCards.length > 0) {
+                this.showCenterMessage(
+                    namedCards.length === 1
+                        ? `${namedCards[0]}を手札に加えた！`
+                        : `${namedCards.length}枚のカードを手札に加えた！`,
+                    2500,
+                    namedCards
+                );
+            }
+        }
+    }
+
+    animateDiscard(playerKey, cardName) {
+        const isPlayer = playerKey === 'player1';
+        const deckEl = isPlayer
+            ? document.getElementById('player-hand')
+            : document.querySelector('.opponent-area'); // Opponent hand
+
+        const discardPile = isPlayer
+            ? document.querySelector('.self-area .discard-pile')
+            : document.querySelector('.opponent-area .discard-pile');
+
+        if (!deckEl || !discardPile) return;
+
+        const startRect = deckEl.getBoundingClientRect();
+        const endRect = discardPile.getBoundingClientRect();
+
+        const card = document.createElement('div');
+        // Setup initial position (roughly center of hand)
+        card.style.position = 'fixed';
+        card.style.top = `${startRect.top + startRect.height / 2 - 60}px`; // Centered vertically roughly
+        card.style.left = `${startRect.left + startRect.width / 2 - 40}px`; // Centered horizontally roughly
+        card.style.width = '80px'; // Small card size
+        card.style.zIndex = '4000';
+        card.style.transition = 'all 0.8s ease-in-out';
+
+        // Add Image
+        const img = document.createElement('img');
+        img.className = 'card-image';
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        img.style.borderRadius = '4px';
+        img.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+
+        this.cardMapper.getCardImage(cardName).then(src => {
+            img.src = src;
+        });
+        card.appendChild(img);
+
+        document.body.appendChild(card);
+
+        // Animate
+        requestAnimationFrame(() => {
+            card.style.top = `${endRect.top}px`;
+            card.style.left = `${endRect.left}px`;
+            card.style.transform = 'scale(0.5) rotate(180deg)';
+            card.style.opacity = '0.5';
+        });
+
+        // Cleanup
+        setTimeout(() => {
+            card.remove();
+        }, 800);
+
+        // Show text message for discard
+        this.showCenterMessage(`${cardName}をトラッシュした`, 1000); // Shorter duration for discard text?
+    }
+
+    showPlayedCard(cardName, cardMapper) {
+        // Create full screen overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'played-card-overlay-js'; // Renamed to avoid CSS conflict
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 5000;
+            pointer-events: none;
+        `;
+
+        const img = document.createElement('img');
+        img.className = 'played-card-image';
+        img.style.cssText = `
+            width: 300px; /* Larger size */
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            transform: scale(0.5);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        `;
+
+        // Load image
+        cardMapper.getCardImage(cardName).then(src => {
+            img.src = src;
+            // Animate In
+            requestAnimationFrame(() => {
+                img.style.transform = 'scale(1)';
+                img.style.opacity = '1';
+            });
+        });
+
+        overlay.appendChild(img);
+        document.body.appendChild(overlay);
+
+        // Note: We don't remove it here immediately because showTrashEffect might use it
+        // But we should have a fallback cleanup just in case
+        setTimeout(() => {
+            if (document.body.contains(overlay)) {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.remove(), 500);
+            }
+        }, 3000);
+    }
+
+    showCenterMessage(text, duration = 2000, cardName = null) {
+        const overlay = document.createElement('div');
+        overlay.className = 'center-message-overlay';
+
+        // Container for layout
+        const container = document.createElement('div');
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        `;
+
+        // Handle single card or multiple cards
+        const cardNames = Array.isArray(cardName) ? cardName : (cardName ? [cardName] : []);
+
+        if (cardNames.length > 0) {
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'center-message-cards';
+            cardsContainer.style.cssText = `
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+                align-items: center;
+                flex-wrap: wrap;
+            `;
+
+            cardNames.forEach((card, index) => {
+                const img = document.createElement('img');
+                img.className = 'center-message-card';
+                // Scale down if showing multiple cards
+                const cardWidth = cardNames.length > 1 ? 150 : 200;
+                img.style.cssText = `
+                    width: ${cardWidth}px;
+                    height: auto;
+                    border-radius: 10px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                    transform: scale(0.8);
+                    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    opacity: 0;
+                `;
+
+                this.cardMapper.getCardImage(card).then(src => {
+                    img.src = src;
+                    // Stagger animation for multiple cards
+                    setTimeout(() => {
+                        requestAnimationFrame(() => {
+                            img.style.transform = 'scale(1)';
+                            img.style.opacity = '1';
+                        });
+                    }, index * 100);
+                });
+                cardsContainer.appendChild(img);
+            });
+
+            container.appendChild(cardsContainer);
+        }
+
+        const textEl = document.createElement('div');
+        textEl.textContent = text;
+        container.appendChild(textEl);
+
+        overlay.appendChild(container);
+
+        // Add basic styles directly if not in CSS yet, or rely on class
+        overlay.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 5000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            text-align: center;
+            white-space: nowrap;
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+        });
+
+        // Animate out and remove
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.remove();
+            }, 300);
+        }, duration);
+    }
+
+    animateUse(playerKey, cardName, abilityName = null) {
+        console.log(`[UI] animateUse called: ${cardName} used ${abilityName || cardName}`);
+        const message = abilityName ? `${abilityName}を使用した！` : `${cardName}を使用した！`;
+        this.showCenterMessage(message, 1500, cardName);
+    }
+
+    animatePlayToBench(playerKey, cardName) {
+        this.showCenterMessage(`${cardName}をベンチに出した`, 1500, cardName);
+    }
+
+    animateAttach(playerKey, cardName, targetName) {
+        this.showCenterMessage(`${targetName}に${cardName}を付けた`, 1500, cardName);
+        // Also trigger fly animation if appropriate
+        this.animateCardFly(playerKey, cardName, targetName, 'tool');
+    }
+
+    animateEvolve(playerKey, fromCard, toCard) {
+        return new Promise((resolve) => {
+            const isPlayer = playerKey === 'player1';
+            const prefix = isPlayer ? 'player' : 'opponent';
+
+            console.log(`[Evolution Animation] Starting: ${fromCard} -> ${toCard} (${prefix})`);
+            // カード検索
+            const activeContainer = document.getElementById(`${prefix}-active`);
+            let targetEl = activeContainer?.querySelector(`.pokemon-card[data-card-name="${fromCard}"]`);
+
+            if (!targetEl) {
+                const benchContainer = document.getElementById(`${prefix}-bench`);
+                targetEl = benchContainer?.querySelector(`.pokemon-card[data-card-name="${fromCard}"]`);
+                if (targetEl) {
+                    console.log(`[Evolution Animation] Found card on bench: ${fromCard}`);
+                }
+            } else {
+                console.log(`[Evolution Animation] Found card on active: ${fromCard}`);
+            }
+
+            if (targetEl) {
+                // 進化オーバーレイテキストを作成
+                const evolutionOverlay = document.createElement('div');
+                evolutionOverlay.className = 'evolution-overlay';
+                evolutionOverlay.textContent = '進化';
+                evolutionOverlay.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 48px;
+                font-weight: 900;
+                color: gold;
+                text-shadow: 
+                    2px 2px 4px rgba(0,0,0,0.8),
+                    0 0 10px rgba(255,215,0,0.8),
+                    0 0 20px rgba(255,215,0,0.6);
+                z-index: 100;
+                pointer-events: none;
+                animation: evolution-text-pulse 1.5s ease-in-out;
+            `;
+
+                targetEl.appendChild(evolutionOverlay);
+                targetEl.classList.add('animate-evolution-flash');
+
+                console.log(`[Evolution Animation] Animation started for ${fromCard}`);
+
+                setTimeout(() => {
+                    evolutionOverlay.remove();
+                    targetEl.classList.remove('animate-evolution-flash');
+                    console.log(`[Evolution Animation] Animation completed for ${fromCard} -> ${toCard}`);
+                    resolve();
+                }, 1500);
+            } else {
+                console.warn(`[Evolution Animation] Could not find card to evolve: ${fromCard} (${prefix})`);
+                // カードが見つからなくてもresolve（処理を止めない）
+                resolve();
+            }
+        });
+    }
+
+    animateStadium(playerKey, cardName) {
+        this.showCenterMessage(`${cardName}を出した`, 2000, cardName);
+
+        // Add glow effect to stadium card slot
+        const stadiumSlot = document.getElementById('stadium-card');
+        if (stadiumSlot) {
+            stadiumSlot.classList.add('stadium-glow');
+            setTimeout(() => {
+                stadiumSlot.classList.remove('stadium-glow');
+            }, 1000);
         }
     }
 

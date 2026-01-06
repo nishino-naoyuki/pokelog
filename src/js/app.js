@@ -10,7 +10,7 @@ class App {
         this.parser = new LogParser();
         this.gameState = null;
         this.cardMapper = new CardMapper();
-        this.ui = new UI();
+        this.ui = new UI(this.cardMapper);
         this.playbackController = null;
 
         this.initEventListeners();
